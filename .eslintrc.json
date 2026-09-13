@@ -1,0 +1,101 @@
+// 1- Install these packages in your dev dependencies using this command:
+
+//npm i -D eslint eslint-config-airbnb eslint-config-prettier eslint-plugin-import eslint-plugin-jsx-a11y eslint-plugin-node eslint-plugin-prettier eslint-plugin-react prettier
+
+/**
+ * eslint → Finds code quality/style problems.
+ * eslint-config-airbnb → Airbnb's ESLint rules/style guide.
+ * eslint-config-prettier → Disables ESLint rules that conflict with Prettier.
+ * eslint-plugin-import → Validates ES module imports/exports.
+ * eslint-plugin-jsx-a11y → Checks accessibility issues in JSX.
+ * eslint-plugin-node → ESLint rules for Node.js.
+ * eslint-plugin-prettier → Runs Prettier through ESLint.
+ * eslint-plugin-react → ESLint rules for React.
+ * prettier → Automatically formats your code.
+ */
+
+// 2- Create ".eslintrc.json" file in the root directory with these configration:
+
+{
+  "extends": [
+    // Airbnb's ESLint rules and JavaScript style guide.
+    "airbnb",
+
+    // Disables ESLint rules that conflict with Prettier formatting.
+    "prettier",
+
+    // Recommended ESLint rules specifically for Node.js applications.
+    "plugin:node/recommended"
+  ],
+
+  // Enables the Prettier ESLint plugin.
+  "plugins": ["prettier"],
+
+  "rules": {
+    // Reports formatting issues detected by Prettier as ESLint errors.
+    "prettier/prettier": "error",
+
+    // Requires a space after comment markers such as //.
+    // Disabled because this project does not enforce that style.
+    "spaced-comment": "off",
+
+    // Prevents the use of console.log(), console.error(), etc.
+    // Disabled because console statements are allowed in this project.
+    "no-console": "off",
+
+    // Requires functions to consistently return a value.
+    // Disabled because functions may intentionally return different values
+    // or have paths that do not return anything.
+    "consistent-return": "off",
+
+    // Requires named functions instead of anonymous functions in certain cases.
+    // Disabled because anonymous functions are allowed.
+    "func-names": "off",
+
+    // Requires object properties to use shorthand syntax when possible.
+    // Disabled because the project does not enforce object shorthand.
+    "object-shorthand": "off",
+
+    // Prevents using process.exit().
+    // Disabled because explicitly terminating the Node.js process is allowed.
+    "no-process-exit": "off",
+
+    // Prevents modifying function parameters.
+    // Disabled because parameter reassignment is allowed.
+    "no-param-reassign": "off",
+
+    // Disallows unnecessary await before returning a Promise.
+    // Disabled because using return await can be intentional.
+    "no-return-await": "off",
+
+    // Prevents using identifiers that begin or end with an underscore.
+    // Disabled because underscore-prefixed properties/variables are allowed.
+    "no-underscore-dangle": "off",
+
+    // Requires class methods to use `this`.
+    // Disabled because class methods are allowed to exist without using `this`.
+    "class-methods-use-this": "off",
+
+    // Reports undefined variables as warnings instead of errors.
+    "no-undef": "warn",
+
+    // Requires destructuring when accessing object properties.
+    // Arrays are excluded from this requirement.
+    "prefer-destructuring": [
+      "error",
+      {
+        "object": true,
+        "array": false
+      }
+    ],
+
+    // Reports unused variables as warnings.
+    // Common Express parameters such as req, res, next, and val are ignored.
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "req|res|next|val"
+      }
+    ]
+  }
+}

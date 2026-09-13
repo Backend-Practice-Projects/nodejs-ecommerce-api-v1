@@ -1,4 +1,3 @@
-// eslint-disable-next-line no-unused-vars
 const globalErrorMiddleware = (error, req, res, next) => {
   if (process.env.NODE_ENV === "development") {
     sendDevelopmentError(res, error);
