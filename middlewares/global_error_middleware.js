@@ -1,9 +1,8 @@
 const globalErrorMiddleware = (error, req, res, next) => {
   if (process.env.NODE_ENV === "development") {
-    sendDevelopmentError(res, error);
-  } else {
-    sendProductionError(res, error);
+    return sendDevelopmentError(res, error);
   }
+  return sendProductionError(res, error);
 };
 
 const sendProductionError = (res, error) => {

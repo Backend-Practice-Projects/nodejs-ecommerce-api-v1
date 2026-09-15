@@ -8,6 +8,7 @@ const dbConfiguration = require("./configs/database_config");
 const categoryRoute = require("./routes/category_route");
 const brandRoute = require("./routes/brand_route");
 const subCategoryRoute = require("./routes/sub_category_route");
+const productRoute = require("./routes/product_route");
 const ApiError = require("./utils/api_error");
 const globalErrorMiddleware = require("./middlewares/global_error_middleware");
 
@@ -39,6 +40,7 @@ if (process.env.NODE_ENV == "development") {
 app.use("/api/v1/categories", categoryRoute);
 app.use("/api/v1/brands", brandRoute);
 app.use("/api/v1/subcategories", subCategoryRoute);
+app.use("/api/v1/products", productRoute);
 
 //This Route Used to Handle Unhandled Routes and Send Error to Error Handling Middleware
 app.all("*splat", (req, res, next) => {

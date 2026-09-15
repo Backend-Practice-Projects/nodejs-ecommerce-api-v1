@@ -4,9 +4,10 @@ const app = require("./app");
 const PORT = process.env.PORT || 9000;
 const server = app.listen(PORT, () => {
   console.log(`Server running on port: ${PORT}`);
+  console.log("ENV:", process.env.NODE_ENV, "PID:", process.pid);
 });
 
-//Handle rejections in promises outside express
+//Handle unhandled (nothing .catch()s that rejection) promise rejections outside express
 process.on("unhandledRejection", (reason) => {
   console.error(`Unhandled Rejection ❌ ${reason.message} | ${reason.name}`);
   //Note: We close the pending requests at first then exit the process

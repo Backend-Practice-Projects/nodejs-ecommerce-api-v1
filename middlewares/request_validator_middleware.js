@@ -19,7 +19,7 @@ const { validationResult } = require("express-validator");
 const requestValidatorMiddleware = (req, res, next) => {
   const result = validationResult(req);
   if (!result.isEmpty()) {
-    res.status(400).send({ errors: result.array() });
+    return res.status(400).send({ errors: result.array() });
   }
   //To continue to the service layer middleware
   next();
