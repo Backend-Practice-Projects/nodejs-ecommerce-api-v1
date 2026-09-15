@@ -10,7 +10,7 @@ const ApiError = require("../utils/api_error");
 const getProductsService = asyncHandler(async (req, res) => {
   //Filtering
   const queryStringObject = req.query;
-  const excludeFields = ["page", "limit", "sort", "fields"];
+  const excludeFields = ["page", "limit", "sort", "fields", "keyword"];
   excludeFields.forEach((field) => delete queryStringObject[field]);
   //Filtering Using [gte,gt,lte,lt]
   /**
@@ -81,6 +81,29 @@ const getProductsService = asyncHandler(async (req, res) => {
     mongooseQuery = mongooseQuery.select(selectedFields);
   } else {
     mongooseQuery = mongooseQuery.select("-__v");
+  }
+
+  //Search
+  if (req.query.keyword) {
+    /**
+     * How this operator combo works:
+     * 1. $regex builds a pattern-matching condition instead of an exact-value
+     *    match, so { title: { $regex: "men" } } matches any title that
+     *    CONTAINS "men" anywhere in the string (e.g. "Women's Shirt"),
+     *    not just documents whose title is exactly "men".
+     * 2. $options: "i" is a modifier for $regex specifically - "i" tells
+     *    Mongo to ignore case, so "MEN", "Men", and "men" all match.
+     * 3. $or takes an array of condition objects and matches a document if
+     *    ANY ONE of them is true, unlike a plain object where every key
+     *    must match. So this returns products where the keyword is found
+     *    in the title OR the description (a product doesn't need both).
+     */
+    const searchQuery = {};
+    searchQuery.$or = [
+      { title: { $regex: req.query.keyword, $options: "i" } },
+      { description: { $regex: req.query.keyword, $options: "i" } },
+    ];
+    mongooseQuery = mongooseQuery.find(searchQuery);
   }
 
   //Execute Query
