@@ -85,7 +85,38 @@ exports.createProductValidator = [
           return Promise.reject(new Error(`InValid subcategories Ids `));
         }
       }),
+    )
+    .custom((subcategoriesIds, { req }) =>
+      /**
+       * { req } is object destructuring — it pulls the req property out of that second argument. It's shorthand for:
+       * .custom((subcategoriesIds, meta) => {
+       * const req = meta.req;
+       * ...
+       * })
+       * If you wanted the local variable to have a different name than the property, you'd write it like an object literal in reverse:
+       * (value, { req: myRequest }) => {
+       * myRequest now holds meta.req
+       * }
+       */
+      SubCategoryDoc.find({ category: req.body.category }).then(
+        (subcategories) => {
+          const subcategoriesIDsInDB = [];
+          subcategories.forEach((subcategory) => {
+            subcategoriesIDsInDB.push(subcategory._id.toString());
+          });
+          const checker = (target, array) =>
+            target.every((categoryId) => array.includes(categoryId));
+          if (!checker(subcategoriesIds, subcategoriesIDsInDB)) {
+            return Promise.reject(
+              new Error(
+                `No subcategories belong to that category ${req.body.category} `,
+              ),
+            );
+          }
+        },
+      ),
     ),
+
   check("brand").optional().isMongoId().withMessage("Invalid ID formate"),
   check("ratingsAverage")
     .optional()

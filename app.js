@@ -22,6 +22,26 @@ dotenv.config({ path: "config.env" });
 dbConfiguration();
 
 const app = express();
+/**
+ * Express 5 changed the default query parser from "extended" (the qs library)
+ * to "simple" (Node's built-in querystring), which does NOT understand bracket
+ * notation. That means a request like ?price[gte]=100 was being parsed as a
+ * flat key literally named "price[gte]" instead of a nested object
+ * { price: { gte: '100' } }.
+ *
+ * Our filtering logic (see product_service.js) relies on that nested shape to
+ * convert gte/gt/lte/lt into MongoDB's $gte/$gt/$lte/$lt operators, so we
+ * restore Express 4's "extended" parser here to get bracket-notation nesting
+ * back.
+ *
+ * This isn't the only fix — we could instead manually parse bracket syntax
+ * in product_service.js (e.g. regex on req.url) and leave the parser as
+ * "simple". But "extended" is the standard, low-risk option: it only changes
+ * how req.query is built (nested/bracket params like ?a[b]=1 become objects,
+ * and array syntax ?a[]=1&a[]=2 works again). It shouldn't affect other
+ * routes here since pagination, sort, and fields are all flat params.
+ */
+app.set("query parser", "extended");
 
 //MiddlewareS
 
