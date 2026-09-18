@@ -8,26 +8,42 @@ const ApiCommonFeatures = require("../utils/api_common_features");
 // @route   GET /api/v1/products
 // @access  Public
 
-const getProductsService = asyncHandler(async (req, res) => {
+const getProductsService = asyncHandler(async (req, res, next) => {
+  //Counts the number of documents that match filter if it is exist
+  const documentsCount = await ProductDoc.countDocuments();
   //Build Query
   const apiCommonFeatures = new ApiCommonFeatures(ProductDoc.find(), req.query)
-    .paginate()
+    .paginate(documentsCount)
     .filter()
     .search()
     .fieldsLimiting()
     .sort();
 
-  //.populate({ path: "category", select: "name-_id" })
-  //Execute Query
-  const products = await apiCommonFeatures.mongooseQuery;
+  const meta = apiCommonFeatures.meta;
+  // Edge case: requested page is beyond the last page (e.g. page=100 when
+  // only 3 exist) - without this check we'd silently return an empty array
+  // instead of telling the client the page doesn't exist.
+  if (meta.isOutOfRange) {
+    return next(
+      new ApiError(
+        `Page ${meta.currentPage} does not exist, maximum page is ${meta.numberOfPages}`,
+        404,
+      ),
+    );
+  }
+
+  // Edge case: populate must run on the raw mongooseQuery, not chained on
+  // ApiCommonFeatures - the class has no populate() method, so chaining it
+  // there throws "populate is not a function".
+  const products = await apiCommonFeatures.mongooseQuery.populate({
+    path: "category",
+    select: "name-_id",
+  });
 
   //Sending The API Response
   res.status(200).json({
-    meta: {
-      result: products.length,
-      // page: page,
-      // limit: limit,
-    },
+    result: products.length,
+    meta,
     data: products,
   });
 });
