@@ -71,6 +71,14 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+// /^find/ matches find, findOne, findOneAndUpdate, etc. so category is
+// populated on every read variant, not just find().
+// Must be registered before mongoose.model() compiles the schema below -
+// hooks added after compilation don't attach.
+productSchema.pre(/^find/, function () {
+  this.populate({ path: "category", select: "name" });
+});
+
 const ProductDoc = mongoose.model("Product", productSchema);
 
 module.exports = ProductDoc;
