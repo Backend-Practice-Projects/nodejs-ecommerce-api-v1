@@ -1,5 +1,6 @@
-const { check } = require("express-validator");
+const { check, body } = require("express-validator");
 const requestValidatorMiddleware = require("../../middlewares/request_validator_middleware");
+const slugify = require("slugify");
 
 exports.createCategoryValidator = [
   //We can use check as a general validator rather than param,body and query
@@ -11,7 +12,11 @@ exports.createCategoryValidator = [
     .isLength({ max: 30 })
     .withMessage(
       "Category Name length must not be greater than thirty character",
-    ),
+    )
+    .custom((name, { req }) => {
+      req.body.slug = slugify(name);
+      return true;
+    }),
   requestValidatorMiddleware,
 ];
 exports.getCategoryValidator = [
@@ -20,6 +25,11 @@ exports.getCategoryValidator = [
 ];
 exports.updateCategoryValidator = [
   check("id").isMongoId().withMessage("Invalid Mongo ID Format"),
+  //You can use check rather than body
+  body("name").custom((name, { req }) => {
+    req.body.slug = slugify(name);
+    return true;
+  }),
   requestValidatorMiddleware,
 ];
 exports.deleteCategoryValidator = [

@@ -8,98 +8,28 @@
  */
 
 const CategoriesDoc = require("../models/category_model");
-const slugify = require("slugify");
-const asyncHandler = require("express-async-handler");
-const ApiError = require("../utils/api_error");
-const ApiCommonFeatures = require("../utils/api_common_features");
+const factory = require("../services/handlers_factory");
 
 // @desc    Get list of categories
 // @route   GET /api/v1/categories
 // @access  Public
 //Note: You can also do exports.getCategoryService in the same line rather than const getCategoryService
-const getCategoriesService = asyncHandler(async (req, res, next) => {
-  const documentsCount = await CategoriesDoc.countDocuments();
-  //Build Query
-  const apiCommonFeatures = new ApiCommonFeatures(
-    CategoriesDoc.find(),
-    req.query,
-  )
-    .paginate(documentsCount)
-    .filter()
-    .search()
-    .fieldsLimiting()
-    .sort();
-
-  const meta = apiCommonFeatures.meta;
-
-  if (meta.isOutOfRange) {
-    return next(
-      new ApiError(
-        `Page ${meta.currentPage} does not exist, maximum page is ${meta.numberOfPages}`,
-        404,
-      ),
-    );
-  }
-
-  const categories = await apiCommonFeatures.mongooseQuery;
-
-  res.status(200).json({
-    result: categories.length,
-    meta,
-    data: categories,
-  });
-});
+const getCategoriesService = factory.getAll(CategoriesDoc);
 
 // @desc    Get specific category by id
 // @route   GET /api/v1/categories/:id
 // @access  Public
-const getCategoryService = asyncHandler(async (req, res, next) => {
-  const id = req.params.id;
-
-  const category = await CategoriesDoc.findById(id);
-  if (!category) {
-    /*     return res
-      .status(404)
-      .json({ message: `No category found for this id ${id}` }); */
-    return next(new ApiError(`No category found for this id ${id}`, 404));
-  }
-  res.status(200).json({
-    data: category,
-  });
-});
+const getCategoryService = factory.getOne(CategoriesDoc);
 
 // @desc    Update specific category
 // @route   PUT /api/v1/categories/:id
 // @access  Private
-const updateCategoryService = asyncHandler(async (req, res, next) => {
-  const id = req.params.id;
-  const name = req.body.name;
-
-  const category = await CategoriesDoc.findByIdAndUpdate(
-    { _id: id },
-    { name: name, slug: slugify(name) },
-    { new: true },
-  );
-  if (!category) {
-    return next(new ApiError(`No category found for this id ${id}`, 404));
-  }
-  res.status(200).json({
-    data: category,
-  });
-});
+const updateCategoryService = factory.updateOne(CategoriesDoc);
 
 // @desc    Delete specific category
 // @route   DELETE /api/v1/categories/:id
 // @access  Private
-const deleteCategoryService = asyncHandler(async (req, res, next) => {
-  const id = req.params.id;
-
-  const category = await CategoriesDoc.findByIdAndDelete(id);
-  if (!category) {
-    return next(new ApiError(`No category found for this id ${id}`, 404));
-  }
-  res.status(204).send();
-});
+const deleteCategoryService = factory.deleteOne(CategoriesDoc);
 
 /* const createCategoryService = (req, res, next) => {
   const name = req.body.name;
@@ -158,15 +88,7 @@ const deleteCategoryService = asyncHandler(async (req, res, next) => {
 // @desc    Create category
 // @route   POST  /api/v1/categories
 // @access  Private
-const createCategoryService = asyncHandler(async (req, res) => {
-  const categoryName = req.body.name;
-
-  const category = await CategoriesDoc.create({
-    name: categoryName,
-    slug: slugify(categoryName),
-  });
-  res.status(201).json({ data: category });
-});
+const createCategoryService = factory.createOne(CategoriesDoc);
 
 //If we need to import more than one we use {,}
 module.exports = {

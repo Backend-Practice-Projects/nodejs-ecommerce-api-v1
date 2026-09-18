@@ -1,6 +1,8 @@
-const { check } = require("express-validator");
+const { check, body } = require("express-validator");
 const CategoriesDoc = require("../../models/category_model");
 const SubCategoryDoc = require("../../models/sub_category_model");
+const slugify = require("slugify");
+
 /**
  * we define it as {validatorMiddleware} and in request_validator_middleware we exported as module.exports = requestValidatorMiddleware;
  * without {}. We will have TypeError('argument handler must be a function')
@@ -12,7 +14,11 @@ exports.createProductValidator = [
     .isLength({ min: 3 })
     .withMessage("Must be at least 3 chars")
     .notEmpty()
-    .withMessage("Product title is required"),
+    .withMessage("Product title is required")
+    .custom((title, { req }) => {
+      req.body.slug = slugify(title);
+      return true;
+    }),
   check("description")
     .notEmpty()
     .withMessage("Product description is required")
@@ -141,6 +147,16 @@ exports.getProductValidator = [
 
 exports.updateProductValidator = [
   check("id").isMongoId().withMessage("Invalid ID formate"),
+  body("title")
+    /**
+     * Marks the field(s) of the validation chain as optional. By default, only fields with an undefined value are
+     * considered optional and will be ignored when validating.
+     */
+    .optional()
+    .custom((name, { req }) => {
+      req.body.slug = slugify(name);
+      return true;
+    }),
   validatorMiddleware,
 ];
 
