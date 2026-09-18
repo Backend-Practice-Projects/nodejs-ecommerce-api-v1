@@ -3,6 +3,7 @@ const asyncHandler = require("express-async-handler");
 
 const SubCategory = require("../models/sub_category_model");
 const ApiError = require("../utils/api_error");
+const ApiCommonFeatures = require("../utils/api_common_features");
 
 exports.assignCategoryIdMiddleWare = (req, res, next) => {
   //Nested Route
@@ -38,11 +39,39 @@ exports.filterObjectMiddleware = (req, res, next) => {
 // @desc    Get list of sub categories
 // @route   GET /api/v1/subcategories
 // @access  Public
-exports.getSubCategoriesService = asyncHandler(async (req, res) => {
-  const page = req.query.page * 1 || 1;
-  const limit = req.query.limit * 1 || 5;
-  const skip = (page - 1) * limit;
+exports.getSubCategoriesService = asyncHandler(async (req, res, next) => {
   console.log(req.params);
+
+  const documentsCount = await SubCategory.countDocuments();
+  //Build Query
+  const apiCommonFeatures = new ApiCommonFeatures(
+    SubCategory.find(req.filterObject),
+    req.query,
+  )
+    .paginate(documentsCount)
+    .filter()
+    .search()
+    .fieldsLimiting()
+    .sort();
+
+  const meta = apiCommonFeatures.meta;
+
+  if (meta.isOutOfRange) {
+    return next(
+      new ApiError(
+        `Page ${meta.currentPage} does not exist, maximum page is ${meta.numberOfPages}`,
+        404,
+      ),
+    );
+  }
+
+  const subCategories = await apiCommonFeatures.mongooseQuery;
+
+  res.status(200).json({
+    result: subCategories.length,
+    meta,
+    data: subCategories,
+  });
 
   /**
    * Using population which means to return the the object or specific items from that object rather than
@@ -54,17 +83,6 @@ exports.getSubCategoriesService = asyncHandler(async (req, res) => {
     //.populate("category");
     //.populate({ path: "category", select: "name" });
     .populate({ path: "category", select: "name-_id" }); */
-  const subCategories = await SubCategory.find(req.filterObject)
-    .skip(skip)
-    .limit(limit);
-  res.status(200).json({
-    meta: {
-      result: subCategories.length,
-      page: page,
-      limit: limit,
-    },
-    data: subCategories,
-  });
 });
 
 // @desc    Get specific sub category by id

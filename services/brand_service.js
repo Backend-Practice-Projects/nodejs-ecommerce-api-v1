@@ -2,21 +2,37 @@ const BrandDoc = require("../models/brand_model");
 const slugify = require("slugify");
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/api_error");
+const ApiCommonFeatures = require("../utils/api_common_features");
 
 // @desc    Get list of brands
 // @route   GET /api/v1/brands
 // @access  Public
-const getBrandsService = asyncHandler(async (req, res) => {
-  const page = req.query.page * 1 || 1;
-  const limit = req.query.limit * 1 || 5;
-  const skip = (page - 1) * limit;
-  const brands = await BrandDoc.find().skip(skip).limit(limit);
+const getBrandsService = asyncHandler(async (req, res, next) => {
+  const documentsCount = await BrandDoc.countDocuments();
+  //Build Query
+  const apiCommonFeatures = new ApiCommonFeatures(BrandDoc.find(), req.query)
+    .paginate(documentsCount)
+    .filter()
+    .search()
+    .fieldsLimiting()
+    .sort();
+
+  const meta = apiCommonFeatures.meta;
+
+  if (meta.isOutOfRange) {
+    return next(
+      new ApiError(
+        `Page ${meta.currentPage} does not exist, maximum page is ${meta.numberOfPages}`,
+        404,
+      ),
+    );
+  }
+
+  const brands = await apiCommonFeatures.mongooseQuery;
+
   res.status(200).json({
-    meta: {
-      result: brands.length,
-      page: page,
-      limit: limit,
-    },
+    result: brands.length,
+    meta,
     data: brands,
   });
 });

@@ -15,7 +15,7 @@ const getProductsService = asyncHandler(async (req, res, next) => {
   const apiCommonFeatures = new ApiCommonFeatures(ProductDoc.find(), req.query)
     .paginate(documentsCount)
     .filter()
-    .search()
+    .search("Product")
     .fieldsLimiting()
     .sort();
 

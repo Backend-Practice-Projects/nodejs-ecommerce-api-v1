@@ -42,6 +42,8 @@ class ApiCommonFeatures {
     queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, (match) => `$${match}`);
     const filterObject = JSON.parse(queryStr);
     //Using Mongo DB (1)
+    // Chaining .find() merges filterObject with any filter already passed
+    // into the constructor (e.g. a route-level filter like category id).
     this.mongooseQuery = this.mongooseQuery.find(filterObject);
     //Using Mongo DB (2)
     /*  this.mongooseQuery = this.mongooseQuery.find({
@@ -98,7 +100,7 @@ class ApiCommonFeatures {
     return this;
   }
 
-  search() {
+  search(modelName) {
     if (this.queryString.keyword) {
       /**
        * How this operator combo works:
@@ -113,18 +115,21 @@ class ApiCommonFeatures {
        *    must match. So this returns products where the keyword is found
        *    in the title OR the description (a product doesn't need both).
        */
-      const searchQuery = {};
+      let searchQuery = {};
       // Escape regex special chars so user input can't inject patterns
       // (regex-injection / ReDoS via e.g. keyword=.* or keyword=(a+)+$)
       const escapedKeyword = this.queryString.keyword.replace(
         /[.*+?^${}()|[\]\\]/g,
-        "\\$&"
+        "\\$&",
       );
-
-      searchQuery.$or = [
-        { title: { $regex: escapedKeyword, $options: "i" } },
-        { description: { $regex: escapedKeyword, $options: "i" } },
-      ];
+      if (modelName == "Product") {
+        searchQuery.$or = [
+          { title: { $regex: escapedKeyword, $options: "i" } },
+          { description: { $regex: escapedKeyword, $options: "i" } },
+        ];
+      } else {
+        searchQuery = { name: { $regex: escapedKeyword, $options: "i" } };
+      }
 
       this.mongooseQuery = this.mongooseQuery.find(searchQuery);
     }

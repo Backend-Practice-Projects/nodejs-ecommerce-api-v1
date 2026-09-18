@@ -11,24 +11,41 @@ const CategoriesDoc = require("../models/category_model");
 const slugify = require("slugify");
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/api_error");
+const ApiCommonFeatures = require("../utils/api_common_features");
 
 // @desc    Get list of categories
 // @route   GET /api/v1/categories
 // @access  Public
 //Note: You can also do exports.getCategoryService in the same line rather than const getCategoryService
-const getCategoriesService = asyncHandler(async (req, res) => {
-  // * 1 -> Convert the string to number
-  const page = req.query.page * 1 || 1;
-  const limit = req.query.limit * 1 || 5;
-  const skip = (page - 1) * limit;
-  //find() -> Get all gategories
-  const categories = await CategoriesDoc.find().skip(skip).limit(limit);
+const getCategoriesService = asyncHandler(async (req, res, next) => {
+  const documentsCount = await CategoriesDoc.countDocuments();
+  //Build Query
+  const apiCommonFeatures = new ApiCommonFeatures(
+    CategoriesDoc.find(),
+    req.query,
+  )
+    .paginate(documentsCount)
+    .filter()
+    .search()
+    .fieldsLimiting()
+    .sort();
+
+  const meta = apiCommonFeatures.meta;
+
+  if (meta.isOutOfRange) {
+    return next(
+      new ApiError(
+        `Page ${meta.currentPage} does not exist, maximum page is ${meta.numberOfPages}`,
+        404,
+      ),
+    );
+  }
+
+  const categories = await apiCommonFeatures.mongooseQuery;
+
   res.status(200).json({
-    meta: {
-      result: categories.length,
-      page: page,
-      limit: limit,
-    },
+    result: categories.length,
+    meta,
     data: categories,
   });
 });
