@@ -116,8 +116,13 @@ class ApiCommonFeatures {
        *    in the title OR the description (a product doesn't need both).
        */
       let searchQuery = {};
-      // Escape regex special chars so user input can't inject patterns
-      // (regex-injection / ReDoS via e.g. keyword=.* or keyword=(a+)+$)
+      /**
+       * Escape regex special chars so user input can't inject patterns
+       * (regex-injection / ReDoS via e.g. keyword=.* or keyword=(a+)+$).
+       * Matches any of . * + ? ^ $ { } ( ) | [ ] \ and prefixes it with a
+       * backslash so it's treated as a literal character, not regex syntax.
+       * e.g. keyword="C++" -> "C\+\+", keyword="a.b" -> "a\.b"
+       */
       const escapedKeyword = this.queryString.keyword.replace(
         /[.*+?^${}()|[\]\\]/g,
         "\\$&",
