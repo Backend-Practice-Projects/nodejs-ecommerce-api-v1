@@ -36,8 +36,10 @@ const productSchema = new mongoose.Schema(
     priceAfterDiscount: {
       type: Number,
     },
-    //Mongoose uses simplified JavaScript object notation for defining schemas.
-    //colors: [String] "array of string" is Mongoose syntax, not plain JavaScript.
+    /*
+     * Mongoose uses simplified JavaScript object notation for defining schemas.
+     * colors: [String] "array of string" is Mongoose syntax, not plain JavaScript.
+     */
     colors: [String],
     imageCover: {
       type: String,
@@ -71,14 +73,19 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-// /^find/ matches find, findOne, findOneAndUpdate, etc. so category is
-// populated on every read variant, not just find().
-// Must be registered before mongoose.model() compiles the schema below -
-// hooks added after compilation don't attach.
+/*
+ * pre is Mongoose middleware that runs before the matched query executes.
+ * /^find/ matches find, findOne, findOneAndUpdate, etc. so category is
+ * populated on every read variant, not just find().
+ * Must be registered before mongoose.model() compiles the schema below -
+ * hooks added after compilation don't attach.
+ */
+
 productSchema.pre(/^find/, function () {
+  // In query middleware functions, this refers to the query (find).
   this.populate({ path: "category", select: "name" });
 });
-
+// In Mongoose, a document is an instance of a Model class.
 const ProductDoc = mongoose.model("Product", productSchema);
 
 module.exports = ProductDoc;
