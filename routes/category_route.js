@@ -21,6 +21,8 @@ const {
   createCategoryService,
   updateCategoryService,
   deleteCategoryService,
+  uploadCategoryImageMiddleware,
+  resizeImageMiddleware,
 } = require("../services/category_service");
 
 const subCategoriesRoute = require("./sub_category_route");
@@ -34,7 +36,19 @@ router.use(
 //router.post("/", getCategoryService);
 router
   .route("/")
-  .post(createCategoryValidator, createCategoryService)
+  .post(
+    uploadCategoryImageMiddleware,
+    resizeImageMiddleware,
+    //We added this request handler middleware to test that multter attach the file to req
+    function (req, res, next) {
+      // req.file is the `image` file
+      // req.body will hold the text fields, if there were any
+      console.log(req.file, req.body);
+      next();
+    },
+    createCategoryValidator,
+    createCategoryService,
+  )
   .get(getCategoriesService);
 
 router
@@ -58,6 +72,11 @@ router
      */
     getCategoryService,
   )
-  .put(updateCategoryValidator, updateCategoryService)
+  .put(
+    uploadCategoryImageMiddleware,
+    resizeImageMiddleware,
+    updateCategoryValidator,
+    updateCategoryService,
+  )
   .delete(deleteCategoryValidator, deleteCategoryService);
 module.exports = router;

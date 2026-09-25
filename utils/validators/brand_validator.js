@@ -22,10 +22,12 @@ exports.getBrandValidator = [
 ];
 exports.updateBrandValidator = [
   check("id").isMongoId().withMessage("Invalid Mongo ID Format"),
-  body("name").custom((name, { req }) => {
-    req.body.slug = slugify(name);
-    return true;
-  }),
+  body("name")
+    .optional()
+    .custom((name, { req }) => {
+      req.body.slug = slugify(name);
+      return true;
+    }),
   requestValidatorMiddleware,
 ];
 exports.deleteBrandValidator = [

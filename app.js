@@ -1,9 +1,15 @@
 //ES6 Style
 //import express, { Request, Response } from "express";
 //CommonJs Style
+/**
+ * Arrange the imports to be as follow: Core Modules, Third Parties Modules, App Modules
+ */
+const path = require("path");
+
 const express = require("express");
 const dotenv = require("dotenv");
 const morgan = require("morgan");
+
 const dbConfiguration = require("./configs/database_config");
 const categoryRoute = require("./routes/category_route");
 const brandRoute = require("./routes/brand_route");
@@ -49,6 +55,21 @@ app.set("query parser", "extended");
  * JSON Decoding Middleware. Also you can use body-parser npm package
  */
 app.use(express.json());
+/**
+ * Serve Static Files
+ * express.static exposes a folder's files directly over HTTP (no custom route needed),
+ * so e.g. a file at uploads/categories/foo.jpeg becomes reachable at /categories/foo.jpeg.
+ * Without this middleware, requests for those files would hit no matching route
+ * and fall through to the 404 handler ("Can't find this route ...").
+ *
+ * __dirname is the absolute path of the folder that contains this file (app.js).
+ * Example: if this project lives at /Users/you/project, then __dirname is
+ * "/Users/you/project", so path.join(__dirname, "uploads") resolves to
+ * "/Users/you/project/uploads" no matter where you run `node app.js` from
+ * (e.g. running it from your home folder wouldn't break the path, unlike
+ * a relative path like "./uploads" would).
+ */
+app.use(express.static(path.join(__dirname, "uploads")));
 
 //Logging Middleware
 if (process.env.NODE_ENV == "development") {

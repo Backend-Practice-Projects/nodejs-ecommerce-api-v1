@@ -1,5 +1,30 @@
 const BrandDoc = require("../models/brand_model");
 const factory = require("../services/handlers_factory");
+const { v4: uuidv4 } = require("uuid");
+const asyncHandler = require("express-async-handler");
+const {
+  uploadSingleImageMiddleware,
+} = require("../middlewares/upload_image_middleware");
+const sharp = require("sharp");
+
+const uploadBrandImageMiddleware = uploadSingleImageMiddleware("image");
+
+//Image processing
+const resizeImageMiddleware = asyncHandler(async (req, res, next) => {
+  const fileName = `brand-${uuidv4()}-${Date.now()}.jpeg`;
+
+  await sharp(req.file.buffer)
+    .resize(400, 400)
+    .toFormat("jpeg")
+    .jpeg({ quality: 90 })
+    //We should create the folder [brands] firstly
+    .toFile(`uploads/brands/${fileName}`);
+  req.body.image = fileName;
+  //req.body.image = `${req.host}/${fileName}`;
+  //Host return the hostname and port but host only return hostname
+
+  next();
+});
 
 // @desc    Get list of brands
 // @route   GET /api/v1/brands
@@ -63,4 +88,6 @@ module.exports = {
   updateBrandService,
   deleteBrandService,
   //applySlugify,
+  uploadBrandImageMiddleware,
+  resizeImageMiddleware,
 };

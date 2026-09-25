@@ -6,9 +6,41 @@
 /**
  * You can use service for logics and controllers for endpoints as an architecture
  */
-
 const CategoriesDoc = require("../models/category_model");
 const factory = require("../services/handlers_factory");
+//const { param,validationResult } = require("express-validator");
+const { v4: uuidv4 } = require("uuid");
+const asyncHandler = require("express-async-handler");
+const {
+  uploadSingleImageMiddleware,
+} = require("../middlewares/upload_image_middleware");
+
+/**
+ * The typical use case for this high speed Node-API module is to convert large images in common formats
+ * to smaller, web-friendly JPEG, PNG, WebP, GIF and AVIF images of varying dimensions.
+ */
+const sharp = require("sharp");
+
+const uploadCategoryImageMiddleware = uploadSingleImageMiddleware("image");
+
+//Image Processing
+const resizeImageMiddleware = asyncHandler(async (req, res, next) => {
+  const fileName = `category-${uuidv4()}-${Date.now()}.jpeg`;
+
+  //Sharp deal only with memory storage
+  await sharp(req.file.buffer)
+    .resize(400, 400)
+    .toFormat("jpeg")
+    .jpeg({ quality: 90 })
+    // toFile() writes the processed image directly to disk (instead of
+    // returning a Buffer like toBuffer() would, which we'd then have to
+    // write ourselves with fs.writeFile). The saved file becomes a normal
+    // static asset served later from uploads/.
+    .toFile(`uploads/categories/${fileName}`);
+  //Save image name into DB
+  req.body.image = fileName;
+  next();
+});
 
 // @desc    Get list of categories
 // @route   GET /api/v1/categories
@@ -97,4 +129,6 @@ module.exports = {
   createCategoryService,
   updateCategoryService,
   deleteCategoryService,
+  uploadCategoryImageMiddleware,
+  resizeImageMiddleware,
 };
