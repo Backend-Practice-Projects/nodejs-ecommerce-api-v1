@@ -85,6 +85,29 @@ productSchema.pre(/^find/, function () {
   // In query middleware functions, this refers to the query (find).
   this.populate({ path: "category", select: "name" });
 });
+
+const setImageURL = (doc) => {
+  if (doc.imageCover) {
+    const imageURL = `${process.env.BASE_URL}/products/${doc.imageCover}`;
+    doc.imageCover = imageURL;
+  }
+  if (doc.images) {
+    const imageList = [];
+    doc.images.forEach((image) => {
+      const imageURL = `${process.env.BASE_URL}/products/${image}`;
+      imageList.push(imageURL);
+    });
+    doc.images = imageList;
+  }
+};
+
+productSchema.post("init", function (doc) {
+  setImageURL(doc);
+});
+productSchema.post("save", function (doc) {
+  setImageURL(doc);
+});
+
 // In Mongoose, a document is an instance of a Model class.
 const ProductDoc = mongoose.model("Product", productSchema);
 

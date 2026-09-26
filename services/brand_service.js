@@ -16,7 +16,7 @@ const resizeImageMiddleware = asyncHandler(async (req, res, next) => {
   await sharp(req.file.buffer)
     .resize(400, 400)
     .toFormat("jpeg")
-    .jpeg({ quality: 90 })
+    .jpeg({ quality: 95 })
     //We should create the folder [brands] firstly
     .toFile(`uploads/brands/${fileName}`);
   req.body.image = fileName;
