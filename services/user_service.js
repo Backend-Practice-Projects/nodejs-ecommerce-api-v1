@@ -71,7 +71,13 @@ const changeUserPasswordService = asyncHandler(async (req, res, next) => {
   const hashedPassword = await bcrypt.hash(req.body.password, 12);
   const document = await UserDoc.findByIdAndUpdate(
     req.params.id,
-    { password: hashedPassword },
+    /*
+     * passwordChangedAt is set here (not left to a hook) because
+     * findByIdAndUpdate skips document middleware. protect (auth_service.js)
+     * compares this against the token's iat to reject tokens issued before
+     * this change.
+     */
+    { password: hashedPassword, passwordChangedAt: Date.now() },
     { new: true },
   );
   if (!document) {

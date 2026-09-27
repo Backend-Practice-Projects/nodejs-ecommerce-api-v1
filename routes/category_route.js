@@ -25,6 +25,8 @@ const {
   resizeImageMiddleware,
 } = require("../services/category_service");
 
+const { protect } = require("../services/auth_service");
+
 const subCategoriesRoute = require("./sub_category_route");
 
 router.use(
@@ -37,6 +39,7 @@ router.use(
 router
   .route("/")
   .post(
+    protect,
     uploadCategoryImageMiddleware,
     resizeImageMiddleware,
     //We added this request handler middleware to test that multter attach the file to req
