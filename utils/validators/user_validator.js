@@ -1,6 +1,7 @@
 const { check, body } = require("express-validator");
 const requestValidatorMiddleware = require("../../middlewares/request_validator_middleware");
 const slugify = require("slugify");
+const bcrypt = require("bcryptjs");
 
 const UserDoc = require("../../models/user_model");
 
@@ -85,6 +86,41 @@ exports.updateUserValidator = [
     ),
   check("profileImg").optional(),
   check("role").optional().isIn(["user", "admin"]).withMessage("Invalid Role"),
+  requestValidatorMiddleware,
+];
+exports.changeUserPasswordValidator = [
+  check("id").isMongoId().withMessage("Invalid Mongo ID Format"),
+  check("currentPassword")
+    .notEmpty()
+    .withMessage("Current Password is required"),
+  check("password")
+    .notEmpty()
+    .withMessage("New Password is required")
+    .isLength({ min: 6 })
+    .withMessage("Password length must not be less than six character")
+    .custom(async (password, { req }) => {
+      const user = await UserDoc.findById(req.params.id);
+      if (!user) {
+        throw new Error(`No user found for this id ${req.params.id}`);
+      }
+      /* bcrypt.compare throws "Illegal arguments: undefined, string" if currentPassword
+         is missing from the request body, since the notEmpty() check above runs independently
+         and doesn't block this custom validator from executing. */
+      const isCorrectPassword = await bcrypt.compare(
+        req.body.currentPassword,
+        user.password,
+      );
+      if (!isCorrectPassword) {
+        throw new Error("Current Password is incorrect");
+      }
+      if (password !== req.body.passwordConfirm) {
+        throw new Error("Password Confirmation does not match Password");
+      }
+      return true;
+    }),
+  check("passwordConfirm")
+    .notEmpty()
+    .withMessage("Password Confirmation is required"),
   requestValidatorMiddleware,
 ];
 exports.deleteUserValidator = [

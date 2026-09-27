@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
   {
@@ -52,6 +53,21 @@ const setImageURL = (doc) => {
     doc.profileImg = imageURL;
   }
 };
+
+/*
+ * An async pre-save hook is awaited via its returned promise, not via a `next`
+ * callback - Mongoose does not pass `next` as an argument when the function is
+ * async. Declaring `async function (next)` and then calling `next()` crashes
+ * with "next is not a function" because `next` is undefined here; just return
+ * (or let the function resolve) instead.
+ */
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) {
+    return;
+  }
+  // "await has no effect" lint here is a misconfig - bcrypt.hash returns a promise
+  this.password = await bcrypt.hash(this.password, 12);
+});
 
 userSchema.post("init", function (doc) {
   setImageURL(doc);

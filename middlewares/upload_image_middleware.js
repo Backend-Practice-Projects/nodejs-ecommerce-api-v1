@@ -7,6 +7,51 @@
 const multer = require("multer");
 const ApiError = require("../utils/api_error");
 
+/*
+ * FULL UPLOAD FLOW (client -> Multer -> req.file):
+ *
+ * 1. Client sends a `multipart/form-data` request. The image is placed in the
+ *    request body as raw BINARY bytes (not text), wrapped between boundary
+ *    markers, e.g.:
+ *
+ *      ------WebKitFormBoundaryABC123
+ *      Content-Disposition: form-data; name="image"; filename="photo.jpg"
+ *      Content-Type: image/jpeg
+ *
+ *      <raw binary bytes of the image>
+ *      ------WebKitFormBoundaryABC123--
+ *
+ * 2. The "raw binary bytes" are just a sequence of numeric byte values
+ *    (0x00-0xFF each), not readable characters. Example of the actual first
+ *    bytes of a real JPEG file (shown in hex):
+ *
+ *      ffd8 ffdb 0043 0002 0101 0101 0102 0101
+ *      0102 0202 0202 0403 0202 0202 0504 0403
+ *
+ *    Meaning:
+ *      - `FF D8` -> JPEG "Start of Image" marker. Every JPEG file begins
+ *        with these two bytes, which is how formats are identified from
+ *        content alone (this is called a "magic number").
+ *      - `FF DB` -> "Define Quantization Table" marker, part of JPEG's
+ *        internal compression metadata.
+ *      - The rest are compressed image data, not text, so they can't be
+ *        opened/read as a string.
+ *
+ * 3. Express alone cannot parse multipart bodies. Multer reads the
+ *    incoming stream, finds the file part, and (with memoryStorage, as
+ *    configured below) buffers those binary bytes into `file.buffer`.
+ *
+ * 4. Multer populates `req.file` with metadata about the upload, including
+ *    `mimetype`. The mimetype is reported by the CLIENT based on the file's
+ *    content/extension, not verified by Multer. Note: `.jpg` and `.jpeg`
+ *    extensions both map to the SAME mimetype, `image/jpeg` - there is no
+ *    separate `image/jpg` MIME type in the standard, so a file named
+ *    "photo.jpg" still reports `mimetype: "image/jpeg"`.
+ *
+ * 5. The controller/handler after this middleware can then read
+ *    `req.file.buffer` (e.g. to resize with sharp and save to disk).
+ */
+
 const multerOptions = () => {
   //const upload = multer({ dest: "uploads/categories" });
   /**
