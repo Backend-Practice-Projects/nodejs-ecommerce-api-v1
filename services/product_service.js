@@ -80,17 +80,17 @@ const getProductService = factory.getOne(ProductDoc);
 
 // @desc    Update specific product
 // @route   PUT /api/v1/products/:id
-// @access  Private
+// @access  Private/Admin-Manager
 const updateProductService = factory.updateOne(ProductDoc);
 
 // @desc    Delete specific product
 // @route   DELETE /api/v1/products/:id
-// @access  Private
+// @access  Private/Admin
 const deleteProductService = factory.deleteOne(ProductDoc);
 
 // @desc    Create product
 // @route   POST  /api/v1/products
-// @access  Private
+// @access  Private/Admin-Manager
 const createProductService = factory.createOne(ProductDoc);
 
 module.exports = {

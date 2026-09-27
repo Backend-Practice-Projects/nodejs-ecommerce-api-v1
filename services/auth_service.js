@@ -124,3 +124,28 @@ exports.protect = asyncHandler(async (req, res, next) => {
   req.user = user;
   next();
 });
+
+/*
+ * Authorization middleware - must run after protect, since it relies on
+ * req.user. (...roles) is the rest operator - it collects every argument
+ * into one array, so a route can call allowedTo("admin", "manager") with
+ * as many roles as needed.
+ *
+ * allowedTo("admin") runs once, when the route is defined, and returns the
+ * inner asyncHandler function below - that's what Express actually stores
+ * and calls on each request. The inner function still has access to
+ * `roles` via closure (it keeps a reference to the variables of the outer
+ * function it was created in, even after that outer function has already
+ * returned). req.user itself is populated earlier in the same request by
+ * protect, which always runs before allowedTo in the route's middleware
+ * chain.
+ */
+exports.allowedTo = (...roles) =>
+  asyncHandler(async (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return next(
+        new ApiError("You are not allowed to access this route", 403),
+      );
+    }
+    next();
+  });

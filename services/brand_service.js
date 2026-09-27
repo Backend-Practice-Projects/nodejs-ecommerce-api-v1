@@ -11,17 +11,19 @@ const uploadBrandImageMiddleware = uploadSingleImageMiddleware("image");
 
 //Image processing
 const resizeImageMiddleware = asyncHandler(async (req, res, next) => {
-  const fileName = `brand-${uuidv4()}-${Date.now()}.jpeg`;
+  if (req.file) {
+    const fileName = `brand-${uuidv4()}-${Date.now()}.jpeg`;
 
-  await sharp(req.file.buffer)
-    .resize(400, 400)
-    .toFormat("jpeg")
-    .jpeg({ quality: 95 })
-    //We should create the folder [brands] firstly
-    .toFile(`uploads/brands/${fileName}`);
-  req.body.image = fileName;
-  //req.body.image = `${req.host}/${fileName}`;
-  //Host return the hostname and port but host only return hostname
+    await sharp(req.file.buffer)
+      .resize(400, 400)
+      .toFormat("jpeg")
+      .jpeg({ quality: 95 })
+      //We should create the folder [brands] firstly
+      .toFile(`uploads/brands/${fileName}`);
+    req.body.image = fileName;
+    //req.body.image = `${req.host}/${fileName}`;
+    //Host return the hostname and port but host only return hostname
+  }
 
   next();
 });
@@ -38,7 +40,7 @@ const getBrandService = factory.getOne(BrandDoc);
 
 // @desc    Update specific brand
 // @route   PUT /api/v1/brand/:id
-// @access  Private
+// @access  Private/Admin-Manager
 
 const updateBrandService = factory.updateOne(BrandDoc);
 
@@ -73,12 +75,12 @@ const updateBrandService = factory.updateOne(BrandDoc);
 
 // @desc    Delete specific brand
 // @route   DELETE /api/v1/brands/:id
-// @access  Private
+// @access  Private/Admin
 const deleteBrandService = factory.deleteOne(BrandDoc);
 
 // @desc    Create brand
 // @route   POST  /api/v1/brands
-// @access  Private
+// @access  Private/Admin-Manager
 const createBrandService = factory.createOne(BrandDoc);
 
 module.exports = {

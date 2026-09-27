@@ -16,9 +16,14 @@ const {
   uploadBrandImageMiddleware,
   resizeImageMiddleware,
 } = require("../services/brand_service");
+
+const { protect, allowedTo } = require("../services/auth_service");
+
 router
   .route("/")
   .post(
+    protect,
+    allowedTo("admin", "manager"),
     uploadBrandImageMiddleware,
     resizeImageMiddleware,
     createBrandValidator,
@@ -30,10 +35,17 @@ router
   .route("/:id")
   .get(getBrandValidator, getBrandService)
   .put(
+    protect,
+    allowedTo("admin", "manager"),
     uploadBrandImageMiddleware,
     resizeImageMiddleware,
     updateBrandValidator,
     updateBrandService,
   )
-  .delete(deleteBrandValidator, deleteBrandService);
+  .delete(
+    protect,
+    allowedTo("admin"),
+    deleteBrandValidator,
+    deleteBrandService,
+  );
 module.exports = router;

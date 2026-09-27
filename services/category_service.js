@@ -26,19 +26,21 @@ const uploadCategoryImageMiddleware = uploadSingleImageMiddleware("image");
 //Image Processing
 const resizeImageMiddleware = asyncHandler(async (req, res, next) => {
   const fileName = `category-${uuidv4()}-${Date.now()}.jpeg`;
+  if (req.file) {
+    //Sharp deal only with memory storage
+    await sharp(req.file.buffer)
+      .resize(400, 400)
+      .toFormat("jpeg")
+      .jpeg({ quality: 90 })
+      // toFile() writes the processed image directly to disk (instead of
+      // returning a Buffer like toBuffer() would, which we'd then have to
+      // write ourselves with fs.writeFile). The saved file becomes a normal
+      // static asset served later from uploads/.
+      .toFile(`uploads/categories/${fileName}`);
+    //Save image name into DB
+    req.body.image = fileName;
+  }
 
-  //Sharp deal only with memory storage
-  await sharp(req.file.buffer)
-    .resize(400, 400)
-    .toFormat("jpeg")
-    .jpeg({ quality: 90 })
-    // toFile() writes the processed image directly to disk (instead of
-    // returning a Buffer like toBuffer() would, which we'd then have to
-    // write ourselves with fs.writeFile). The saved file becomes a normal
-    // static asset served later from uploads/.
-    .toFile(`uploads/categories/${fileName}`);
-  //Save image name into DB
-  req.body.image = fileName;
   next();
 });
 
@@ -55,12 +57,12 @@ const getCategoryService = factory.getOne(CategoriesDoc);
 
 // @desc    Update specific category
 // @route   PUT /api/v1/categories/:id
-// @access  Private
+// @access  Private/Admin-Manager
 const updateCategoryService = factory.updateOne(CategoriesDoc);
 
 // @desc    Delete specific category
 // @route   DELETE /api/v1/categories/:id
-// @access  Private
+// @access  Private/Admin
 const deleteCategoryService = factory.deleteOne(CategoriesDoc);
 
 /* const createCategoryService = (req, res, next) => {
@@ -119,7 +121,7 @@ const deleteCategoryService = factory.deleteOne(CategoriesDoc);
 
 // @desc    Create category
 // @route   POST  /api/v1/categories
-// @access  Private
+// @access  Private/Admin-Manager
 const createCategoryService = factory.createOne(CategoriesDoc);
 
 //If we need to import more than one we use {,}

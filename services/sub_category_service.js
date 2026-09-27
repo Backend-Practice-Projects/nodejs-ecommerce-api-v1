@@ -40,15 +40,15 @@ exports.getSubCategoryService = factory.getOne(SubCategory);
 
 // @desc    Create SubCategory
 // @route   POST /api/v1/Subcategories
-// @access  Private
+// @access  Private/Admin-Manager
 exports.createSubCategoryService = factory.createOne(SubCategory);
 
 // @desc    Update specific sub category
 // @route   PUT /api/v1/subcategories/:id
-// @access  Private
+// @access  Private/Admin-Manager
 exports.updateSubCategoryService = factory.updateOne(SubCategory);
 
 // @desc    Delete specific sub category
 // @route   DELETE /api/v1/subcategories/:id
-// @access  Private
+// @access  Private/Admin
 exports.deleteSubCategoryService = factory.deleteOne(SubCategory);

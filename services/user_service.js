@@ -32,17 +32,17 @@ const resizeImageMiddleware = asyncHandler(async (req, res, next) => {
 
 // @desc    Get list of users
 // @route   GET /api/v1/users
-// @access  Private
+// @access  Private/Admin
 const getUsersService = factory.getAll(UserDoc);
 
 // @desc    Get specific user by id
 // @route   GET /api/v1/users/:id
-// @access  Private
+// @access  Private/Admin
 const getUserService = factory.getOne(UserDoc);
 
 // @desc    Update specific user
 // @route   PUT /api/v1/user/:id
-// @access  Private
+// @access  Private/Admin
 /*
  * password is stripped here so it can never be set unhashed through this
  * generic update path - password changes must go through
@@ -60,13 +60,27 @@ const updateUserService = asyncHandler((req, res, next) => {
 });
 
 /*
+ * Lets a logged-in user change their own password without needing admin
+ * rights, while still letting an admin change anyone's. Must run after
+ * protect, since it relies on req.user.
+ */
+const allowSelfOrAdmin = asyncHandler(async (req, res, next) => {
+  if (req.user.role !== "admin" && req.user._id.toString() !== req.params.id) {
+    return next(
+      new ApiError("You are not allowed to access this route", 403),
+    );
+  }
+  next();
+});
+
+/*
  * findByIdAndUpdate bypasses Mongoose document middleware, so the pre("save")
  * hashing hook on the model never runs here - the password is hashed
  * explicitly before the update instead.
  */
 // @desc    Change specific user's password
 // @route   PUT /api/v1/users/changePassword/:id
-// @access  Private
+// @access  Private/Self-or-Admin
 const changeUserPasswordService = asyncHandler(async (req, res, next) => {
   const hashedPassword = await bcrypt.hash(req.body.password, 12);
   const document = await UserDoc.findByIdAndUpdate(
@@ -90,12 +104,12 @@ const changeUserPasswordService = asyncHandler(async (req, res, next) => {
 
 // @desc    Delete specific user
 // @route   DELETE /api/v1/users/:id
-// @access  Private
+// @access  Private/Admin
 const deleteUserService = factory.deleteOne(UserDoc);
 
 // @desc    Create user
 // @route   POST  /api/v1/users
-// @access  Private
+// @access  Private/Admin
 const createUserService = factory.createOne(UserDoc);
 
 module.exports = {
@@ -104,6 +118,7 @@ module.exports = {
   createUserService,
   updateUserService,
   changeUserPasswordService,
+  allowSelfOrAdmin,
   deleteUserService,
   uploadUserImageMiddleware,
   resizeImageMiddleware,

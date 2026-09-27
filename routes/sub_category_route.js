@@ -17,9 +17,14 @@ const {
   filterObjectMiddleware,
   assignCategoryIdMiddleWare,
 } = require("../services/sub_category_service");
+
+const { protect, allowedTo } = require("../services/auth_service");
+
 router
   .route("/")
   .post(
+    protect,
+    allowedTo("admin", "manager"),
     assignCategoryIdMiddleWare,
     createSubCategoryValidator,
     createSubCategoryService,
@@ -29,6 +34,16 @@ router
 router
   .route("/:id")
   .get(getSubCategoryValidator, getSubCategoryService)
-  .put(updateSubCategoryValidator, updateSubCategoryService)
-  .delete(deleteSubCategoryValidator, deleteSubCategoryService);
+  .put(
+    protect,
+    allowedTo("admin", "manager"),
+    updateSubCategoryValidator,
+    updateSubCategoryService,
+  )
+  .delete(
+    protect,
+    allowedTo("admin"),
+    deleteSubCategoryValidator,
+    deleteSubCategoryService,
+  );
 module.exports = router;

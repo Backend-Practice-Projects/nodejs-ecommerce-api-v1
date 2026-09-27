@@ -17,9 +17,13 @@ const {
   resizeImageMiddleware,
 } = require("../services/product_service");
 
+const { protect, allowedTo } = require("../services/auth_service");
+
 router
   .route("/")
   .post(
+    protect,
+    allowedTo("admin", "manager"),
     uploadProductImages,
     resizeImageMiddleware,
     createProductValidator,
@@ -31,10 +35,17 @@ router
   .route("/:id")
   .get(getProductValidator, getProductService)
   .put(
+    protect,
+    allowedTo("admin", "manager"),
     uploadProductImages,
     resizeImageMiddleware,
     updateProductValidator,
     updateProductService,
   )
-  .delete(deleteProductValidator, deleteProductService);
+  .delete(
+    protect,
+    allowedTo("admin"),
+    deleteProductValidator,
+    deleteProductService,
+  );
 module.exports = router;

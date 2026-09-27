@@ -25,7 +25,7 @@ const {
   resizeImageMiddleware,
 } = require("../services/category_service");
 
-const { protect } = require("../services/auth_service");
+const { protect, allowedTo } = require("../services/auth_service");
 
 const subCategoriesRoute = require("./sub_category_route");
 
@@ -40,6 +40,7 @@ router
   .route("/")
   .post(
     protect,
+    allowedTo("admin", "manager"),
     uploadCategoryImageMiddleware,
     resizeImageMiddleware,
     //We added this request handler middleware to test that multter attach the file to req
@@ -76,10 +77,17 @@ router
     getCategoryService,
   )
   .put(
+    protect,
+    allowedTo("admin", "manager"),
     uploadCategoryImageMiddleware,
     resizeImageMiddleware,
     updateCategoryValidator,
     updateCategoryService,
   )
-  .delete(deleteCategoryValidator, deleteCategoryService);
+  .delete(
+    protect,
+    allowedTo("admin"),
+    deleteCategoryValidator,
+    deleteCategoryService,
+  );
 module.exports = router;

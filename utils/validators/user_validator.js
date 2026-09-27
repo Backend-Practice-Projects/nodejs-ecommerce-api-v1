@@ -49,7 +49,10 @@ exports.createUserValidator = [
     .notEmpty()
     .withMessage("Password Confirmation is required"),
   check("profileImg").optional(),
-  check("role").optional().isIn(["user", "admin"]).withMessage("Invalid Role"),
+  check("role")
+    .optional()
+    .isIn(["user", "manager", "admin"])
+    .withMessage("Invalid Role"),
   requestValidatorMiddleware,
 ];
 exports.getUserValidator = [
@@ -85,7 +88,10 @@ exports.updateUserValidator = [
       "Invalid Phone Number, only Egyptian and Saudi Arabian numbers are accepted",
     ),
   check("profileImg").optional(),
-  check("role").optional().isIn(["user", "admin"]).withMessage("Invalid Role"),
+  check("role")
+    .optional()
+    .isIn(["user", "manager", "admin"])
+    .withMessage("Invalid Role"),
   requestValidatorMiddleware,
 ];
 exports.changeUserPasswordValidator = [
