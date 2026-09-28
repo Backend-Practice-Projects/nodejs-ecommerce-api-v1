@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 
 const factory = require("../services/handlers_factory");
 const ApiError = require("../utils/api_error");
+const generateToken = require("../utils/generate_token");
 
 const {
   uploadSingleImageMiddleware,
@@ -66,9 +67,7 @@ const updateUserService = asyncHandler((req, res, next) => {
  */
 const allowSelfOrAdmin = asyncHandler(async (req, res, next) => {
   if (req.user.role !== "admin" && req.user._id.toString() !== req.params.id) {
-    return next(
-      new ApiError("You are not allowed to access this route", 403),
-    );
+    return next(new ApiError("You are not allowed to access this route", 403));
   }
   next();
 });
@@ -102,6 +101,89 @@ const changeUserPasswordService = asyncHandler(async (req, res, next) => {
   res.status(200).json({ data: document });
 });
 
+/*
+ * Reuses getUserService by injecting the logged-in user's id into
+ * req.params.id before delegating, instead of duplicating the lookup logic.
+ *
+ * Alternative: since getUserService is itself an (req, res, next) handler,
+ * router.route("/getMe").get(protect, setUserIdFromToken, getUserService))
+ * the id could instead be set in its own small middleware and chained in
+ * the route as protect, setParamIdFromUser, getUserService - letting Express
+ * do the composition instead of calling getUserService manually here.
+ */
+// @desc    Get logged-in user's data
+// @route   GET /api/v1/users/getMe
+// @access  Private
+const getLoggedUserDataService = asyncHandler((req, res, next) => {
+  req.params.id = req.user._id;
+  return getUserService(req, res, next);
+});
+
+/*
+ *   So unlike changeUserPasswordService, it issues and returns a fresh token here to
+ *   keep the caller logged in.
+ */
+// @desc    Update logged-in user's own password
+// @route   PUT /api/v1/users/updateMyPassword
+// @access  Private
+const updateLoggedUserPasswordService = asyncHandler(async (req, res, next) => {
+  const hashedPassword = await bcrypt.hash(req.body.password, 12);
+  const user = await UserDoc.findByIdAndUpdate(
+    req.user._id,
+    { password: hashedPassword, passwordChangedAt: Date.now() },
+    { new: true },
+  );
+
+  const token = generateToken(user._id);
+
+  res.status(200).json({ data: user, token });
+});
+
+/*
+ * Self-only profile update, separate from updateUserService: role and
+ * password are stripped (not just password) so a regular user can't
+ * escalate their own privileges or bypass changePassword/updateMyPassword
+ * through this route, and the id always comes from req.user, never
+ * req.params, so a user can only ever update their own document.
+ */
+// @desc    Update logged-in user's own data (name, email, phone, profileImg)
+// @route   PUT /api/v1/users/updateMe
+// @access  Private
+const updateLoggedUserDataService = asyncHandler(async (req, res, next) => {
+  delete req.body.password;
+  delete req.body.role;
+
+  const user = await UserDoc.findByIdAndUpdate(
+    req.user._id,
+    {
+      name: req.body.name,
+      /*
+       * slug is never sent by the client - updateLoggedUserDataValidator's
+       * custom() on "name" sets req.body.slug as a side effect during
+       * validation. It must be listed explicitly here (this object is a
+       * whitelist, not a passthrough of req.body) or it gets silently
+       * dropped and the stored slug goes stale vs. the new name.
+       */
+      slug: req.body.slug,
+      email: req.body.email,
+      phone: req.body.phone,
+      profileImg: req.body.profileImg,
+    },
+    { new: true },
+  );
+
+  res.status(200).json({ data: user });
+});
+
+// @desc    Deactivate logged-in user's own account
+// @route   PUT /api/v1/users/deactivateMe
+// @access  Private
+const deactivateLoggedUserDataService = asyncHandler(async (req, res, next) => {
+  await UserDoc.findByIdAndUpdate(req.user._id, { active: false });
+
+  res.status(204).send();
+});
+
 // @desc    Delete specific user
 // @route   DELETE /api/v1/users/:id
 // @access  Private/Admin
@@ -115,9 +197,13 @@ const createUserService = factory.createOne(UserDoc);
 module.exports = {
   getUsersService,
   getUserService,
+  getLoggedUserDataService,
   createUserService,
   updateUserService,
+  updateLoggedUserDataService,
+  deactivateLoggedUserDataService,
   changeUserPasswordService,
+  updateLoggedUserPasswordService,
   allowSelfOrAdmin,
   deleteUserService,
   uploadUserImageMiddleware,

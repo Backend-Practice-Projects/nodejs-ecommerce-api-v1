@@ -12,11 +12,7 @@ const UserDoc = require("../models/user_model");
 const jwt = require("jsonwebtoken");
 const ApiError = require("../utils/api_error");
 const sendEmail = require("../utils/send_email");
-
-const generateToken = (userId) =>
-  jwt.sign({ sub: userId }, process.env.JWT_SECRET_KEY, {
-    expiresIn: process.env.JWT_EXPIRY_DATE,
-  });
+const generateToken = require("../utils/generate_token");
 
 // @desc    User SignUp
 // @route   POST /api/v1/auth/signUp
@@ -53,6 +49,12 @@ exports.userLoginService = asyncHandler(async (req, res, next) => {
    */
   if (!user || !(await bcrypt.compare(req.body.password, user.password))) {
     return next(new ApiError("Incorrect email or password", 401));
+  }
+
+  //[1.1] Logging back in reactivates a deactivated account
+  if (!user.active) {
+    user.active = true;
+    await user.save();
   }
 
   //[2] Generate and send the JWT
@@ -240,6 +242,13 @@ exports.protect = asyncHandler(async (req, res, next) => {
   if (!user) {
     return next(
       new ApiError("The user belonging to this token no longer exists", 401),
+    );
+  }
+
+  //[3.1] Block deactivated accounts from using their still-valid token
+  if (!user.active) {
+    return next(
+      new ApiError("This account has been deactivated, please contact support", 401),
     );
   }
 
