@@ -1,8 +1,17 @@
+/*
+ * The node:crypto module is a built-in Node.js library that provides robust cryptographic
+ * functionality, wrapping OpenSSL's methods. It allows you to perform operations like hashing,
+ * HMAC generation, data encryption/decryption, and signing.
+ * Because it is built directly into the runtime environment, you do not need to install
+ * external packages like crypto-js to use these features.
+ */
+const crypto = require("crypto");
 const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcryptjs");
 const UserDoc = require("../models/user_model");
 const jwt = require("jsonwebtoken");
 const ApiError = require("../utils/api_error");
+const sendEmail = require("../utils/send_email");
 
 const generateToken = (userId) =>
   jwt.sign({ sub: userId }, process.env.JWT_SECRET_KEY, {
@@ -50,6 +59,149 @@ exports.userLoginService = asyncHandler(async (req, res, next) => {
   const token = generateToken(user._id);
 
   res.status(200).json({ data: user, token });
+});
+
+// @desc    Send a 6-digit reset code to the user's email
+// @route   POST /api/v1/auth/forgotPassword
+// @access  Public
+exports.forgotPasswordService = asyncHandler(async (req, res, next) => {
+  //[1] Find the user by email
+  const user = await UserDoc.findOne({ email: req.body.email });
+  if (!user) {
+    return next(
+      new ApiError(`There is no user with email ${req.body.email}`, 404),
+    );
+  }
+
+  /*
+   * [2] Generate a 6-digit reset code and store only its hash (like a password).
+   * "Like a password" means the same pattern only: never store the raw secret,
+   * store its hash, and compare by re-hashing the incoming value and checking equality.
+   * It is not the same algorithm and not encryption (encryption is reversible with a key,
+   * hashing is one-way).
+   * We use crypto/sha256 here instead of bcrypt because bcrypt is deliberately slow and
+   * salted to resist brute-forcing a low-entropy password. A reset code is a 6-digit
+   * number (1M combinations) with a short 10-minute expiry, so bcrypt's slowness adds no
+   * real benefit, and we need a fast, deterministic hash to do a direct === comparison
+   * (bcrypt requires its own async compare function and is intentionally slow).
+   */
+  /*
+   * Math.random() * 900000 gives a float in [0, 900000), adding 100000 shifts
+   * the range to [100000, 1000000), and Math.floor rounds it down to an integer.
+   * Result: a random 6-digit number, always between 100000 and 999999 (never
+   * fewer than 6 digits). toString() converts it to a string for hashing/storage.
+   *
+   * Example: Math.random() -> 0.3721
+   *          0.3721 * 900000 = 334890
+   *          100000 + 334890 = 434890
+   *          Math.floor(434890) = 434890 -> "434890"
+   *
+   * Why 100000/900000: Math.random() alone gives [0, 1), so without the +100000
+   * shift, a result like 0.000005 * 900000 = 5 would produce a code with fewer
+   * than 6 digits. Shifting the range to [100000, 1000000) guarantees exactly 6.
+   */
+  const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+  /*
+   * .update(resetCode) feeds the code into the hash algorithm.
+   * .digest(encoding) finalizes the hash and outputs the result. A SHA-256 hash is
+   * really just 32 raw bytes; digest("hex") tells it to encode those bytes as a
+   * hexadecimal string (64 hex characters) instead of returning a raw Buffer.
+   * Other options would be "base64" or no argument at all (which returns a Buffer).
+   * "hex" is chosen because it's easy to store as a plain string in MongoDB and
+   * compare directly with === against another hex-encoded hash, with no
+   * binary/encoding mismatches to worry about.
+   */
+  const hashedResetCode = crypto
+    .createHash("sha256")
+    .update(resetCode)
+    .digest("hex");
+
+  user.passwordResetCode = hashedResetCode;
+  /*
+   * Date.now() is the current time in milliseconds; adding 10 * 60 * 1000
+   * (10 minutes in ms) sets the expiry timestamp to 10 minutes from now.
+   */
+  user.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+  user.passwordResetVerified = false;
+  await user.save();
+
+  //[3] Send the plain reset code to the user's email
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: "Your password reset code (valid for 10 min)",
+      message: `Hi ${user.name},\nWe received a request to reset the password for your account.\n${resetCode}\nEnter this code to complete the reset.`,
+    });
+  } catch (err) {
+    console.error(err);
+    //[4] Roll back the reset fields if the email failed to send
+    user.passwordResetCode = undefined;
+    user.passwordResetExpires = undefined;
+    user.passwordResetVerified = undefined;
+    await user.save();
+    return next(new ApiError("There is an error sending the email", 500));
+  }
+
+  res
+    .status(200)
+    .json({ status: "Success", message: "Reset code sent to email" });
+});
+
+// @desc    Verify the reset code sent to the user's email
+// @route   POST /api/v1/auth/verifyResetCode
+// @access  Public
+exports.verifyPasswordResetCodeService = asyncHandler(
+  async (req, res, next) => {
+    //[1] Hash the submitted code and look up a user with a matching, unexpired one
+    const hashedResetCode = crypto
+      .createHash("sha256")
+      .update(req.body.resetCode)
+      .digest("hex");
+
+    const user = await UserDoc.findOne({
+      passwordResetCode: hashedResetCode,
+      passwordResetExpires: { $gt: Date.now() },
+    });
+    if (!user) {
+      return next(new ApiError("Reset code invalid or expired", 400));
+    }
+
+    //[2] Mark the code as verified so resetPasswordService can trust it
+    user.passwordResetVerified = true;
+    await user.save();
+
+    res.status(200).json({ status: "Success" });
+  },
+);
+
+// @desc    Reset the user's password after the reset code has been verified
+// @route   PUT /api/v1/auth/resetPassword
+// @access  Public
+exports.resetPasswordService = asyncHandler(async (req, res, next) => {
+  //[1] Find the user by email
+  const user = await UserDoc.findOne({ email: req.body.email });
+  if (!user) {
+    return next(
+      new ApiError(`There is no user with email ${req.body.email}`, 404),
+    );
+  }
+
+  //[2] Make sure the reset code was verified first
+  if (!user.passwordResetVerified) {
+    return next(new ApiError("Reset code not verified", 400));
+  }
+
+  //[3] Update the password and clear the reset fields
+  user.password = req.body.newPassword;
+  user.passwordResetCode = undefined;
+  user.passwordResetExpires = undefined;
+  user.passwordResetVerified = undefined;
+  await user.save();
+
+  //[4] Log the user in with a fresh token
+  const token = generateToken(user._id);
+
+  res.status(200).json({ token });
 });
 
 // @desc    Verify the JWT on protected routes and attach the user to req
