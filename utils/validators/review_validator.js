@@ -57,3 +57,12 @@ exports.deleteReviewValidator = [
   check("id").isMongoId().withMessage("Invalid Mongo ID Format"),
   requestValidatorMiddleware,
 ];
+
+//Nested route param: GET /products/:productId/reviews
+exports.getReviewsValidator = [
+  check("productId")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid Mongo ID Format"),
+  requestValidatorMiddleware,
+];

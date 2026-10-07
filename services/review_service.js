@@ -3,6 +3,21 @@ const ReviewDoc = require("../models/review_model");
 const factory = require("../services/handlers_factory");
 const ApiError = require("../utils/api_error");
 
+//Nested Route: POST /products/:productId/reviews
+exports.assignProductAndUserMiddleware = (req, res, next) => {
+  if (!req.body.product) req.body.product = req.params.productId;
+  req.body.user = req.user._id;
+  next();
+};
+
+//Nested Route: GET /products/:productId/reviews
+exports.filterObjectMiddleware = (req, res, next) => {
+  let filterObject = {};
+  if (req.params.productId) filterObject = { product: req.params.productId };
+  req.filterObject = filterObject;
+  next();
+};
+
 //Users can only modify their own reviews, admins and managers can delete any review
 //You can also make this at the validation layer
 exports.checkReviewOwnershipMiddleware = asyncHandler(
@@ -13,7 +28,12 @@ exports.checkReviewOwnershipMiddleware = asyncHandler(
         new ApiError(`No review found for this id ${req.params.id}`, 404),
       );
     }
+    /**
+     * Make sure to use  review.user._id because if you used populate
+     * review.user will include other values in addition to the _id
+     */
     const isOwner = review.user._id.toString() === req.user._id.toString();
+
     const isStaff = ["admin", "manager"].includes(req.user.role);
     const isDelete = req.method === "DELETE";
     if (!isOwner && !(isDelete && isStaff)) {

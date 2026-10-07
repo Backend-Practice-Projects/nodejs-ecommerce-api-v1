@@ -1,5 +1,5 @@
 const express = require("express");
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
 const {
   getReviewsService,
@@ -7,6 +7,7 @@ const {
   createReviewService,
   updateReviewService,
   deleteReviewService,
+  filterObjectMiddleware,
   assignProductAndUserMiddleware,
   checkReviewOwnershipMiddleware,
 } = require("../services/review_service");
@@ -14,6 +15,7 @@ const {
 const {
   createReviewValidator,
   getReviewValidator,
+  getReviewsValidator,
   updateReviewValidator,
   deleteReviewValidator,
 } = require("../utils/validators/review_validator");
@@ -29,7 +31,7 @@ router
     createReviewValidator,
     createReviewService,
   )
-  .get(getReviewsService);
+  .get(getReviewsValidator, filterObjectMiddleware, getReviewsService);
 
 router
   .route("/:id")
