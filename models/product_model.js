@@ -71,8 +71,52 @@ const productSchema = new mongoose.Schema(
       default: 0,
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    /*
+     * toJSON: applies when the document is serialized with JSON.stringify or
+     * res.json(). Virtuals are skipped by default, so without this the
+     * reviews field would never reach the API response.
+     * Side effect: Mongoose's built-in id virtual (string copy of _id) is
+     * included too, so responses carry both _id and id. It is harmless but
+     * redundant; add id: false to these schema options to drop it.
+     */
+    toJSON: { virtuals: true },
+    /*
+     * toObject: applies when doc.toObject() is called (or the doc is logged).
+     * Keeps both representations consistent.
+     */
+    toObject: { virtuals: true },
+  },
 );
+
+/*
+ * Virtual populate: exposes the product's reviews without storing review ids
+ * on the product document. Only filled when .populate("reviews") is called.
+ *
+ * How it works: the virtual is not stored in MongoDB. On populate, Mongoose
+ * runs Review.find({ product: <this product's _id> }) and attaches the result.
+ *   ref          - the model to query (Review)
+ *   foreignField - the field in the Review model that points back (product)
+ *   localField   - the field in this model it is compared against (_id)
+ *
+ * When to use it: for a one-to-many relation where the "many" side (reviews)
+ * already holds the reference to the "one" side (product), and the list can
+ * grow without limit. Storing an array of review ids on the product would
+ * duplicate the relation, risk going out of sync, and bloat the document.
+ * Use a normal stored ref array instead when the list is small and bounded
+ * (e.g. subcategories).
+ *
+ * Caveats: virtuals can't be queried or selected (no .select("reviews") or
+ * filter on it), and the reviews are only included where populate is
+ * requested (here, get-one product), not on every read.
+ */
+productSchema.virtual("reviews", {
+  ref: "Review",
+  foreignField: "product",
+  localField: "_id",
+});
+
 /*
  * pre is Mongoose middleware that runs before the matched query executes.
  * /^find/ matches find, findOne, findOneAndUpdate, etc. so category is

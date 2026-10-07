@@ -76,7 +76,7 @@ const getProductsService = factory.getAll(ProductDoc, "Product");
 // @desc    Get specific product by id
 // @route   GET /api/v1/products/:id
 // @access  Public
-const getProductService = factory.getOne(ProductDoc);
+const getProductService = factory.getOne(ProductDoc, "reviews");
 
 // @desc    Update specific product
 // @route   PUT /api/v1/products/:id
