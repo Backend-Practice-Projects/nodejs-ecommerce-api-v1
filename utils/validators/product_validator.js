@@ -63,6 +63,7 @@ exports.createProductValidator = [
     .withMessage("Product must belongs to a category")
     .isMongoId()
     .withMessage("Invalid ID formate")
+    .bail()
     .custom((categoryId) =>
       CategoriesDoc.findById(categoryId).then((category) => {
         if (!category) {
@@ -76,6 +77,7 @@ exports.createProductValidator = [
     .optional()
     .isMongoId()
     .withMessage("Invalid ID formate")
+    .bail()
     .custom((subcategoriesIds) =>
       /**
        * This syntax is MongoDB-specific. The operators like $in and $exists don't exist in plain JavaScript.
