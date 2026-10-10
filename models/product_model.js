@@ -46,6 +46,11 @@ const productSchema = new mongoose.Schema(
       required: [true, "Product Image cover is required"],
     },
     images: [String],
+    /*
+     * mongoose.Schema.ObjectId is an alias of mongoose.Schema.Types.ObjectId
+     * (the documented form), kept for backwards compatibility. Both behave
+     * identically.
+     */
     category: {
       type: mongoose.Schema.ObjectId,
       ref: "Category",
@@ -103,7 +108,7 @@ const productSchema = new mongoose.Schema(
  * When to use it: for a one-to-many relation where the "many" side (reviews)
  * already holds the reference to the "one" side (product), and the list can
  * grow without limit. Storing an array of review ids on the product would
- * duplicate the relation, risk going out of sync, and bloat the document.
+ * duplicate the relation, risk going out of sync, and bloat the document (a known MongoDB anti-pattern).
  * Use a normal stored ref array instead when the list is small and bounded
  * (e.g. subcategories).
  *
