@@ -48,6 +48,29 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    //Child reference (one to many)
+    wishlist: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: "Product",
+      },
+    ],
+    /*
+     * Embedded documents (one to few): the addresses live inside the user
+     * document instead of their own collection, because they are few, owned
+     * by exactly one user, and always read together with that user.
+     * Mongoose gives each array element its own _id automatically, which is
+     * what the remove endpoint targets.
+     */
+    addresses: [
+      {
+        alias: { type: String, trim: true },
+        details: { type: String, trim: true },
+        phone: String,
+        city: { type: String, trim: true },
+        postalCode: String,
+      },
+    ],
   },
   { timestamps: true },
 );

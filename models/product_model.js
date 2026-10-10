@@ -123,10 +123,31 @@ productSchema.virtual("reviews", {
  * populated on every read variant, not just find().
  * Must be registered before mongoose.model() compiles the schema below -
  * hooks added after compilation don't attach.
+ *
+ * Side effect: the hook also fires when products are loaded through another
+ * model's populate, because populate runs a Product.find() under the hood.
+ * Example: the wishlist endpoint calls
+ *   User.findById(id).populate({ path: "wishlist", select: "title" })
+ * and each product still comes back as { _id, title, category, id }:
+ *   category - this hook populates it, and populating a path forces that
+ *              field back into the projection even though the caller's
+ *              select left it out.
+ *   id       - Mongoose's built-in virtual, included because of
+ *              toJSON: { virtuals: true } in the schema options above.
+ *   _id      - always returned unless excluded explicitly.
+ *
+ * How to get only the selected fields:
+ *   _id      - exclude it in the caller's select: "title -_id".
+ *   category - skip the populate for that query, e.g. pass
+ *              options: { skipCategory: true } in the caller's populate and
+ *              check this.getOptions().skipCategory here before populating.
+ *   id       - set id: false in the schema options; this removes it from
+ *              every product response, not just the wishlist.
  */
 
 productSchema.pre(/^find/, function () {
   // In query middleware functions, this refers to the query (find).
+  // if (this.getOptions().skipCategory) return;
   this.populate({ path: "category", select: "name" });
 });
 
