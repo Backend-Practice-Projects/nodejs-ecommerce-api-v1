@@ -44,18 +44,25 @@ async function getCurrentPublicIp() {
   return data.ip;
 }
 
-async function getExistingEntryForComment() {
+async function getExistingEntriesForComment() {
   const res = await client.fetch(BASE_URL, {
     headers: { Accept: "application/vnd.atlas.2023-11-15+json" },
   });
   const data = await res.json();
   const results = data.results || [];
-  return results.find((entry) => entry.comment === ATLAS_ENTRY_COMMENT);
+  return results.filter((entry) => entry.comment === ATLAS_ENTRY_COMMENT);
 }
 
 async function deleteEntry(ipAddress) {
   const url = `${BASE_URL}/${ipAddress}`;
-  await client.fetch(url, { method: "DELETE" });
+  const res = await client.fetch(url, {
+    method: "DELETE",
+    headers: { Accept: "application/vnd.atlas.2023-11-15+json" },
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Failed to remove IP ${ipAddress}: ${res.status} ${errText}`);
+  }
   console.log(`Removed old whitelist entry: ${ipAddress}`);
 }
 
@@ -101,18 +108,22 @@ async function main() {
   const currentIp = await getCurrentPublicIp();
   console.log(`Current public IP: ${currentIp}`);
 
-  const existingEntry = await getExistingEntryForComment();
+  const existingEntries = await getExistingEntriesForComment();
+  const upToDate = existingEntries.some((e) => e.ipAddress === currentIp);
+  const staleEntries = existingEntries.filter((e) => e.ipAddress !== currentIp);
 
-  if (existingEntry && existingEntry.ipAddress === currentIp) {
+  if (upToDate && staleEntries.length === 0) {
     console.log("IP unchanged, nothing to update.");
     return;
   }
 
-  if (existingEntry) {
-    await deleteEntry(existingEntry.ipAddress);
+  for (const entry of staleEntries) {
+    await deleteEntry(entry.ipAddress);
   }
 
-  await addEntry(currentIp);
+  if (!upToDate) {
+    await addEntry(currentIp);
+  }
   console.log("Whitelist updated successfully.");
 }
 
