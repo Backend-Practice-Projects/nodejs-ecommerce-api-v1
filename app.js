@@ -11,15 +11,18 @@ const dotenv = require("dotenv");
 const morgan = require("morgan");
 
 const dbConfiguration = require("./configs/database_config");
-const categoryRoute = require("./routes/category_route");
-const brandRoute = require("./routes/brand_route");
-const subCategoryRoute = require("./routes/sub_category_route");
-const productRoute = require("./routes/product_route");
-const reviewRoute = require("./routes/review_route");
-const wishlistRoute = require("./routes/wishlist_route");
-const addressRoute = require("./routes/address_route");
-const userRoute = require("./routes/user_route");
-const authRoute = require("./routes/auth_route");
+/**
+ * When require() is given a folder, Node automatically looks for index.js inside it,
+ * so require("./routes") and require("./routes/index.js") load the same file.
+ *
+ * `index` is the fixed name for that shortcut. You can rename the file to anything,
+ * but then you must write the filename in the import, e.g.
+ * require("./routes/mount_routes"). The .js extension stays optional either way.
+ *
+ * The one exception is a package.json inside the folder with a "main" field pointing
+ * to another file, which is rarely worth doing for an app folder.
+ */
+const mountRoutes = require("./routes");
 
 const ApiError = require("./utils/api_error");
 const globalErrorMiddleware = require("./middlewares/global_error_middleware");
@@ -84,15 +87,7 @@ if (process.env.NODE_ENV == "development") {
 }
 
 //Mount  Routes
-app.use("/api/v1/categories", categoryRoute);
-app.use("/api/v1/brands", brandRoute);
-app.use("/api/v1/subcategories", subCategoryRoute);
-app.use("/api/v1/products", productRoute);
-app.use("/api/v1/reviews", reviewRoute);
-app.use("/api/v1/wishlist", wishlistRoute);
-app.use("/api/v1/addresses", addressRoute);
-app.use("/api/v1/users", userRoute);
-app.use("/api/v1/auth", authRoute);
+mountRoutes(app);
 
 //This Route Used to Handle Unhandled Routes and Send Error to Error Handling Middleware
 app.all("*splat", (req, res, next) => {
