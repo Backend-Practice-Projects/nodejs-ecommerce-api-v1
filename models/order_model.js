@@ -60,6 +60,14 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-const OrderDoc = mongoose.model("Order", orderSchema);
+//Runs for every find query, so both get-all and get-specific return populated orders
+orderSchema.pre(/^find/, function () {
+  this.populate({ path: "user", select: "name email phone" }).populate({
+    path: "cartItems.product",
+    select: "title imageCover",
+  });
+});
+
+const OrderDoc =mongoose.model("Order", orderSchema);
 
 module.exports = OrderDoc;

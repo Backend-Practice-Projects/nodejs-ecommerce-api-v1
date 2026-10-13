@@ -67,7 +67,7 @@ exports.getAll = (docModel, modelName = "") =>
     if (req.filterObject) {
       filterObject = req.filterObject;
     }
-    const documentsCount = await docModel.countDocuments();
+    const documentsCount = await docModel.countDocuments(filterObject);
     //Build Query
     const apiCommonFeatures = new ApiCommonFeatures(
       docModel.find(filterObject),

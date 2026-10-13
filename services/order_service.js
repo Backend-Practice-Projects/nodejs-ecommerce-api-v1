@@ -3,6 +3,7 @@ const ApiError = require("../utils/api_error");
 const CartDoc = require("../models/cart_model");
 const OrderDoc = require("../models/order_model");
 const ProductDoc = require("../models/product_model");
+const factory = require("./handlers_factory");
 
 //App settings, not per-order input, so the client can't choose them
 const TAX_PRICE = 0;
@@ -85,3 +86,74 @@ exports.createCashOrderService = asyncHandler(async (req, res, next) => {
 
   res.status(201).json({ status: "success", data: order });
 });
+
+//Regular users only see their own orders, admin and manager see all of them
+exports.filterOrdersForUserMiddleware = (req, res, next) => {
+  if (req.user.role === "user") req.filterObject = { user: req.user._id };
+  next();
+};
+
+// @desc    Get all orders (own orders for a user)
+// @route   GET /api/v1/orders
+// @access  Private/User-Admin-Manager
+exports.getAllOrdersService = factory.getAll(OrderDoc);
+
+// @desc    Get specific order (own order for a user)
+// @route   GET /api/v1/orders/:id
+// @access  Private/User-Admin-Manager
+exports.getSpecificOrderService = asyncHandler(async (req, res, next) => {
+  const filter = { _id: req.params.id };
+  /*
+   * Without this, any logged-in user could read any order by id. That flaw is
+   * called IDOR (Insecure Direct Object Reference): the server trusts an id
+   * from the client without checking the caller owns that object.
+   * Ids aren't secret (they leak via logs, URLs, other responses), and orders
+   * hold the shipping address and phone. Admin and manager look up by id alone.
+   */
+  if (req.user.role === "user") filter.user = req.user._id;
+
+  const order = await OrderDoc.findOne(filter);
+  //Same 404 for someone else's order not 403 so its existence isn't revealed
+  if (!order) {
+    return next(
+      new ApiError(`No order found for this id ${req.params.id}`, 404),
+    );
+  }
+  res.status(200).json({ data: order });
+});
+
+// @desc    Mark order as paid
+// @route   PUT /api/v1/orders/:id/pay
+// @access  Private/Admin-Manager
+exports.updateOrderToPaidService = asyncHandler(async (req, res, next) => {
+  const order = await OrderDoc.findById(req.params.id);
+  if (!order) {
+    return next(
+      new ApiError(`No order found for this id ${req.params.id}`, 404),
+    );
+  }
+  order.isPaid = true;
+  order.paidAt = Date.now();
+  const updatedOrder = await order.save();
+
+  res.status(200).json({ status: "success", data: updatedOrder });
+});
+
+// @desc    Mark order as delivered
+// @route   PUT /api/v1/orders/:id/deliver
+// @access  Private/Admin-Manager
+exports.updateOrderToDeliveredService = asyncHandler(
+  async (req, res, next) => {
+    const order = await OrderDoc.findById(req.params.id);
+    if (!order) {
+      return next(
+        new ApiError(`No order found for this id ${req.params.id}`, 404),
+      );
+    }
+    order.isDelivered = true;
+    order.deliveredAt = Date.now();
+    const updatedOrder = await order.save();
+
+    res.status(200).json({ status: "success", data: updatedOrder });
+  },
+);

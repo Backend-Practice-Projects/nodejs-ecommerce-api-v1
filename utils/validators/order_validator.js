@@ -20,3 +20,8 @@ exports.createCashOrderValidator = [
   check("shippingAddress.postalCode").optional().isString().trim(),
   requestValidatorMiddleware,
 ];
+
+exports.getOrderValidator = [
+  check("id").isMongoId().withMessage("Invalid Mongo ID Format"),
+  requestValidatorMiddleware,
+];
