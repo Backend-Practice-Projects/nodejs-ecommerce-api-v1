@@ -4,6 +4,7 @@ const CartDoc = require("../models/cart_model");
 const OrderDoc = require("../models/order_model");
 const ProductDoc = require("../models/product_model");
 const factory = require("./handlers_factory");
+const Stripe = require("stripe");
 
 //App settings, not per-order input, so the client can't choose them
 const TAX_PRICE = 0;
@@ -157,3 +158,48 @@ exports.updateOrderToDeliveredService = asyncHandler(
     res.status(200).json({ status: "success", data: updatedOrder });
   },
 );
+
+// @desc    Create Stripe checkout session from logged-in user's cart
+// @route   POST /api/v1/orders/checkout-session
+// @access  Private/User
+exports.createCheckoutSessionService = asyncHandler(async (req, res, next) => {
+  const cart = await CartDoc.findOne({ user: req.user._id });
+  if (!cart || cart.cartItems.length === 0) {
+    return next(new ApiError("There is no cart for this user", 404));
+  }
+
+  const cartPrice = cart.totalPriceAfterDiscount ?? cart.totalCartPrice;
+  const totalOrderPrice = cartPrice + TAX_PRICE + SHIPPING_PRICE;
+
+  const { details, phone, city, postalCode } = req.body.shippingAddress;
+
+  /*
+   * Created per request, not at the top of the file: app.js requires the routes
+   * before dotenv.config runs, so process.env.STRIPE_SECRET is still undefined
+   * when this module loads.
+   */
+  const stripe = new Stripe(process.env.STRIPE_SECRET);
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    //One line item for the whole cart so the coupon discount is already applied
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: "egp",
+          //Stripe amounts are in the smallest currency unit (piasters)
+          unit_amount: Math.round(totalOrderPrice * 100),
+          product_data: { name: `Order for ${req.user.name}` },
+        },
+      },
+    ],
+    customer_email: req.user.email,
+    client_reference_id: cart._id.toString(),
+    //Metadata values are strings, used later to build the order once payment succeeds
+    metadata: { details, phone, city, postalCode: postalCode ?? "" },
+    success_url: `${process.env.BASE_URL}/api/v1/orders`,
+    cancel_url: `${process.env.BASE_URL}/api/v1/cart`,
+  });
+
+  res.status(200).json({ status: "success", session });
+});

@@ -3,6 +3,7 @@ const router = express.Router();
 
 const {
   createCashOrderService,
+  createCheckoutSessionService,
   filterOrdersForUserMiddleware,
   getAllOrdersService,
   getSpecificOrderService,
@@ -36,6 +37,13 @@ router
     filterOrdersForUserMiddleware,
     getAllOrdersService,
   );
+
+router.post(
+  "/checkout-session",
+  allowedTo("user"),
+  createCashOrderValidator,
+  createCheckoutSessionService,
+);
 
 router
   .route("/:id")
