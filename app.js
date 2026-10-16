@@ -9,6 +9,8 @@ const path = require("path");
 const express = require("express");
 const dotenv = require("dotenv");
 const morgan = require("morgan");
+const cors = require("cors");
+const compression = require("compression");
 
 const dbConfiguration = require("./configs/database_config");
 /**
@@ -23,6 +25,7 @@ const dbConfiguration = require("./configs/database_config");
  * to another file, which is rarely worth doing for an app folder.
  */
 const mountRoutes = require("./routes");
+const { webhookCheckoutService } = require("./services/order_service");
 
 const ApiError = require("./utils/api_error");
 const globalErrorMiddleware = require("./middlewares/global_error_middleware");
@@ -37,6 +40,67 @@ dotenv.config({ path: "config.env" });
 dbConfiguration();
 
 const app = express();
+/*
+ * CORS (Cross-Origin Resource Sharing)
+ *
+ * What: browsers block a page served from one origin (e.g. http://localhost:3000)
+ * from reading responses of another origin (e.g. this API on http://localhost:8000).
+ * An origin is scheme + host + port, so a different port already counts as
+ * different. The scheme is the protocol at the start of a URL (http or https),
+ * so http://localhost:8000 and https://localhost:8000 are different origins. This is the browser's "same-origin policy".
+ *
+ * Use: the server opts in by sending an Access-Control-Allow-Origin response
+ * header. cors() adds it to every response (value "*" means any origin may
+ * read it), and also answers the browser's OPTIONS preflight requests that
+ * come before non-simple requests (e.g. JSON body or an Authorization header).
+ * Preflight means that before sending such a request, the browser first asks
+ * the server with an OPTIONS request "am I allowed to do this?" and only sends
+ * the real request if the answer says yes. A plain GET with no special headers
+ * skips it. cors() answers that OPTIONS check so the real request goes through.
+ *
+ * Who sends the preflight:
+ * - The browser sends it automatically. Frontend code (fetch, axios) only
+ *   makes the normal request, the browser decides whether a preflight is needed
+ *   and sends it first. It shows as a separate OPTIONS call in the DevTools
+ *   Network tab, right before the real request.
+ * - Postman is not a browser, so it never sends a preflight by itself and does
+ *   not enforce CORS. A request that works in Postman can still fail in the
+ *   browser if the server has no CORS setup.
+ *
+ * Testing the preflight manually in Postman:
+ * 1. Set the method to OPTIONS (type it in the method dropdown).
+ * 2. Add these request headers:
+ *    - Origin: http://localhost:3000 (the frontend origin asking permission)
+ *    - Access-Control-Request-Method: POST (the method the real request will use)
+ *    - Access-Control-Request-Headers: content-type, authorization (the headers
+ *      the real request will send)
+ * 3. Send it and open the response Headers tab. A working setup returns status
+ *    204 with Access-Control-Allow-Origin and Access-Control-Allow-Methods.
+ * Without it, a frontend would work in Postman but fail in the browser.
+ * Postman and curl are not browsers, so they never enforce CORS.
+ *
+ * Request headers vs response headers:
+ * - Request headers are sent by the client to the server (Host, User-Agent,
+ *   Accept, Authorization...). In Postman they are in the request's Headers tab.
+ * - Response headers are sent by the server back to the client
+ *   (Content-Type, Access-Control-Allow-Origin...). In Postman they are in the
+ *   response panel's Headers tab, after sending the request.
+ * So Access-Control-Allow-Origin will not appear in the request headers: it is
+ * added by the server, so look for it in the response headers.
+ */
+app.use(cors());
+/*
+ * Compress response bodies (gzip, deflate or br) for every request that goes
+ * through this middleware, based on the client's Accept-Encoding header.
+ *
+ * It never compresses a response that has a Cache-Control header with the
+ * no-transform directive, because compressing changes (transforms) the body.
+ * This is about the RESPONSE header and is not the same as no-cache: the
+ * Cache-Control: no-cache that Postman sends is a request header about reusing
+ * stored copies, so it does not stop compression. Small bodies (under 1 KB by
+ * default) are also skipped. Check for Content-Encoding in the response headers.
+ */
+app.use(compression());
 /**
  * Express 5 changed the default query parser from "extended" (the qs library)
  * to "simple" (Node's built-in querystring), which does NOT understand bracket
@@ -59,6 +123,35 @@ const app = express();
 app.set("query parser", "extended");
 
 //MiddlewareS
+
+/*
+ * Must come before express.json().
+ *
+ * How the Stripe signature check works:
+ * 1. Stripe has the event as a JSON string and encodes it to bytes (UTF-8) to
+ *    send it. Everything over HTTP is bytes, so the JSON string goes out as
+ *    bytes. The string and its bytes are the same data, bytes are just how it
+ *    is stored and sent.
+ * 2. Stripe hashes those bytes (HMAC-SHA256, with a timestamp in front) using
+ *    our webhook secret (whsec_...) and sends the result in the Stripe-Signature
+ *    header. The body itself is plain, not encrypted.
+ * 3. We receive those exact bytes. express.raw() keeps them as-is in a Buffer.
+ * 4. stripe.webhooks.constructEvent repeats the same hash on that Buffer with
+ *    our secret and compares it to the header. If they match, the body came
+ *    from Stripe and was not changed. Then it parses the JSON into the event.
+ *
+ * Why not express.json(): it reads the Buffer, converts it to text, runs
+ * JSON.parse and puts the object in req.body. The original bytes are not kept.
+ * Turning the object back into text could differ (spacing, key order, escaped
+ * characters), which gives different bytes, a different hash and a failed
+ * check. So this route uses express.raw(), and express.json() below only runs
+ * for the other routes.
+ */
+app.post(
+  "/webhook-checkout",
+  express.raw({ type: "application/json" }),
+  webhookCheckoutService,
+);
 
 /**
  * JSON Decoding Middleware. Also you can use body-parser npm package

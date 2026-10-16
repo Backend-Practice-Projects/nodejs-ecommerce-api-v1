@@ -10,19 +10,11 @@ const Stripe = require("stripe");
 const TAX_PRICE = 0;
 const SHIPPING_PRICE = 0;
 
-// @desc    Create cash order from logged-in user's cart
-// @route   POST /api/v1/orders
-// @access  Private/User
-exports.createCashOrderService = asyncHandler(async (req, res, next) => {
-  const cart = await CartDoc.findOne({ user: req.user._id });
-  if (!cart || cart.cartItems.length === 0) {
-    return next(new ApiError("There is no cart for this user", 404));
-  }
-
-  //Prices were snapshotted into the cart, so the discounted total is used if a coupon was applied
-  const cartPrice = cart.totalPriceAfterDiscount ?? cart.totalCartPrice;
-  const totalOrderPrice = cartPrice + TAX_PRICE + SHIPPING_PRICE;
-
+/*
+ * Decrements stock for every cart item and returns false if any item is out of
+ * stock or deleted. Shared by the cash order and the Stripe webhook.
+ */
+const reserveStock = async (cartItems) => {
   /*
    * For each cart item we build one "update product" instruction, and
    * bulkWrite sends all of them to MongoDB in a single call.
@@ -40,14 +32,31 @@ exports.createCashOrderService = asyncHandler(async (req, res, next) => {
    * buy the last item at the same time: only one of the two updates matches.
    */
   const { matchedCount } = await ProductDoc.bulkWrite(
-    cart.cartItems.map((item) => ({
+    cartItems.map((item) => ({
       updateOne: {
         filter: { _id: item.product, quantity: { $gte: item.quantity } },
         update: { $inc: { quantity: -item.quantity, sold: item.quantity } },
       },
     })),
   );
-  if (matchedCount !== cart.cartItems.length) {
+  return matchedCount === cartItems.length;
+};
+
+// @desc    Create cash order from logged-in user's cart
+// @route   POST /api/v1/orders
+// @access  Private/User
+exports.createCashOrderService = asyncHandler(async (req, res, next) => {
+  const cart = await CartDoc.findOne({ user: req.user._id });
+  if (!cart || cart.cartItems.length === 0) {
+    return next(new ApiError("There is no cart for this user", 404));
+  }
+
+  //Prices were snapshotted into the cart, so the discounted total is used if a coupon was applied
+  const cartPrice = cart.totalPriceAfterDiscount ?? cart.totalCartPrice;
+  const totalOrderPrice = cartPrice + TAX_PRICE + SHIPPING_PRICE;
+
+  const inStock = await reserveStock(cart.cartItems);
+  if (!inStock) {
     /*
      * Known limitation: the updates are not all-or-nothing.
      *
@@ -202,4 +211,95 @@ exports.createCheckoutSessionService = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({ status: "success", session });
+});
+
+// @desc    Stripe webhook, creates the paid card order once checkout completes
+// @route   POST /webhook-checkout
+// @access  Public (called by Stripe, authenticated by its signature)
+exports.webhookCheckoutService = asyncHandler(async (req, res) => {
+  const stripe = new Stripe(process.env.STRIPE_SECRET);
+  let event;
+  try {
+    //req.body must be the raw Buffer, the signature is computed over the exact bytes
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      req.headers["stripe-signature"],
+      process.env.STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    const cart = await CartDoc.findById(session.client_reference_id);
+
+    /*
+     * Stripe retries on any non-2xx, and the cart is deleted after the first
+     * success, so a missing cart means this event was already handled.
+     */
+    if (cart) {
+      const { details, phone, city, postalCode } = session.metadata;
+
+      /*
+       * The order is created before touching stock. stripeSessionId has a
+       * unique index, so if two copies of the same event arrive at the same
+       * moment (both found the cart), only one create succeeds. The other gets
+       * a duplicate key error (code 11000) and stops, so stock is not
+       * decremented twice.
+       */
+      try {
+        await OrderDoc.create({
+          user: cart.user,
+          cartItems: cart.cartItems,
+          shippingAddress: { details, phone, city, postalCode },
+          taxPrice: TAX_PRICE,
+          shippingPrice: SHIPPING_PRICE,
+          //Stripe's amount is what was actually charged, in piasters
+          totalOrderPrice: session.amount_total / 100,
+          paymentMethodType: "card",
+          isPaid: true,
+          paidAt: Date.now(),
+          stripeSessionId: session.id,
+        });
+      } catch (err) {
+        //Already handled by another delivery of this event, acknowledge it
+        if (err.code === 11000) return res.status(200).json({ received: true });
+        /*
+         * Any other error (e.g. a temporary database failure) is rethrown, which
+         * hands it back to asyncHandler. It forwards it to the global error
+         * handler, which replies with a 500, and Stripe retries later. Replying
+         * 200 here instead would make Stripe think the order was created, so it
+         * would never retry and the paid order would be lost.
+         */
+        throw err;
+      }
+
+      /*
+       * Known limitation: the order is created above and the stock is updated
+       * here, not all-or-nothing.
+       *
+       * If the server crashes after the order is created but before this call
+       * finishes, Stripe retries the event, the create hits the duplicate key
+       * error above and returns early, so the stock is never decremented for
+       * that order. The gap is only the few milliseconds between two database
+       * calls, so it is unlikely.
+       *
+       * A transaction around the create, the stock update and the cart delete
+       * would roll all of it back on a crash, but it needs a replica set and
+       * Atlas has one by default.
+       */
+      const inStock = await reserveStock(cart.cartItems);
+      if (!inStock) {
+        //The customer already paid, so this needs a manual refund
+        console.error(
+          `Stripe session ${session.id} paid but some items are out of stock`,
+        );
+      }
+
+      await CartDoc.findByIdAndDelete(cart._id);
+    }
+  }
+
+  res.status(200).json({ received: true });
 });

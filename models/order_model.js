@@ -47,6 +47,16 @@ const orderSchema = new mongoose.Schema(
     },
     deliveredAt: Date,
     /*
+     * Checkout session that paid for this order (card orders only). unique
+     * stops the same Stripe event from creating two orders, sparse lets cash
+     * orders leave it empty without clashing on null.
+     */
+    stripeSessionId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    /*
      * Snapshot of the address at order time, not a ref to user.addresses,
      * so later edits or removal of that address don't change past orders.
      */
