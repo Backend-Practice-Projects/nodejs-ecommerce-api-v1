@@ -41,7 +41,8 @@ dbConfiguration();
 
 const app = express();
 /*
- * CORS (Cross-Origin Resource Sharing)
+ * CORS (Cross-Origin Resource Sharing): It is a Node.js middleware for Express and Connect
+ * that sets Cross-Origin Resource Sharing (CORS) response headers.
  *
  * What: browsers block a page served from one origin (e.g. http://localhost:3000)
  * from reading responses of another origin (e.g. this API on http://localhost:8000).
@@ -87,6 +88,17 @@ const app = express();
  *   response panel's Headers tab, after sending the request.
  * So Access-Control-Allow-Origin will not appear in the request headers: it is
  * added by the server, so look for it in the response headers.
+ *
+ * Credentials (cookies or credentials: "include" / withCredentials: true):
+ * - The wildcard "*" is NOT accepted by the browser when the frontend sends
+ *   credentials. The server must name the exact origin instead and also send
+ *   Access-Control-Allow-Credentials: true.
+ *   cors({ origin: "http://localhost:3000", credentials: true })
+ * - This is a separate rule from preflight: preflight asks "may I send this
+ *   request?", the credentials rule limits what the answer may contain. Both can
+ *   apply to the same request, the OPTIONS response and the real response.
+ * - An Authorization header alone does not need credentials: "include", so "*"
+ *   still works for it.
  */
 app.use(cors());
 /*
@@ -99,6 +111,17 @@ app.use(cors());
  * Cache-Control: no-cache that Postman sends is a request header about reusing
  * stored copies, so it does not stop compression. Small bodies (under 1 KB by
  * default) are also skipped. Check for Content-Encoding in the response headers.
+ *
+ * The three encodings are ways to shrink a response body before sending it,
+ * and the browser unpacks it automatically:
+ * - gzip: the most common, works everywhere. Good compression, fast.
+ * - deflate: the older algorithm that gzip is built on. Rarely used now.
+ * - br (Brotli): Google's newer algorithm, "br" is its name in the headers.
+ *   About 15-25% smaller than gzip, but slower to compress. Mostly used for
+ *   static files over HTTPS.
+ * The client lists what it supports in Accept-Encoding: gzip, deflate, br. The
+ * server picks one and says which in the response header Content-Encoding.
+ * Brotli support depends on the installed version of this package.
  */
 app.use(compression());
 /**
