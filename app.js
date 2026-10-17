@@ -195,28 +195,5 @@ app.all("*splat", (req, res, next) => {
  * that is how express recognizes it as an error handler
  */
 app.use(globalErrorMiddleware);
-// app.use((error, req, res, next) => {
-//   //Duplicate key, `unique` is an index not a validator so it has no message
-//   if (error.code === 11000) {
-//     const field = Object.keys(error.keyValue || {})[0];
-//     return res.status(400).json({
-//       status: "fail",
-//       message: `${field} must be unique, this value already exists`,
-//     });
-//   }
-
-//   //Schema validators, like required, minlength & maxlength
-//   if (error.name === "ValidationError") {
-//     return res.status(400).json({
-//       status: "fail",
-//       message: Object.values(error.errors).map((one) => one.message),
-//     });
-//   }
-
-//   res.status(error.statusCode || 500).json({
-//     status: "error",
-//     message: error.message,
-//   });
-// });
 
 module.exports = app;
