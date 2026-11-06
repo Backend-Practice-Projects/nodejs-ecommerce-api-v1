@@ -13,6 +13,7 @@ const jwt = require("jsonwebtoken");
 const ApiError = require("../utils/api_error");
 const sendEmail = require("../utils/send_email");
 const generateToken = require("../utils/generate_token");
+const sanitizeUser = require("../utils/sanitize_user");
 
 // @desc    User SignUp
 // @route   POST /api/v1/auth/signUp
@@ -25,10 +26,13 @@ exports.userSignUpService = asyncHandler(async (req, res, next) => {
     password: req.body.password,
   });
 
-  //[2] Generate and send the JWT
+  //[2] select:false doesn't apply to a just-created doc, so strip the hash manually
+  user.password = undefined;
+
+  //[3] Generate and send the JWT
   const token = generateToken(user._id);
 
-  res.status(201).json({ data: user, token });
+  res.status(201).json({ data: sanitizeUser(user), token });
 });
 
 /*
@@ -41,7 +45,16 @@ exports.userSignUpService = asyncHandler(async (req, res, next) => {
 // @access  Public
 exports.userLoginService = asyncHandler(async (req, res, next) => {
   //[1] Find the user by email and check the password
-  const user = await UserDoc.findOne({ email: req.body.email });
+  /*
+   * password has select: false in the schema, so queries hide it by default.
+   * We need the hash here for bcrypt.compare, so we ask for it explicitly:
+   *  - .select("+password") -> all the default fields PLUS password
+   *  - .select("password")  -> ONLY password (email, active, ... are lost)
+   * The "+" means "add this hidden field to the defaults".
+   */
+  const user = await UserDoc.findOne({ email: req.body.email }).select(
+    "+password",
+  );
 
   /*
    * Same message for "No Such Email" and "Wrong Password" so the endpoint
@@ -57,10 +70,23 @@ exports.userLoginService = asyncHandler(async (req, res, next) => {
     await user.save();
   }
 
-  //[2] Generate and send the JWT
+  /*
+   * [2] The hash was selected only for the compare above, so strip it before
+   * responding. Ways to remove it from a Mongoose document:
+   *  - user.password = undefined        -> works, public API (used here)
+   *  - delete user.password             -> does NOT work: password is a
+   *    getter/setter on the prototype, so delete on the instance does nothing
+   *  - delete user._doc.password        -> works (_doc holds the raw data) but
+   *    _doc is internal, not public API, and may change between versions
+   *  - const obj = user.toObject(); delete obj.password
+   *                                     -> works (plain object), but longer
+   */
+  user.password = undefined;
+
+  //[3] Generate and send the JWT
   const token = generateToken(user._id);
 
-  res.status(200).json({ data: user, token });
+  res.status(200).json({ data: sanitizeUser(user), token });
 });
 
 // @desc    Send a 6-digit reset code to the user's email
@@ -248,7 +274,10 @@ exports.protect = asyncHandler(async (req, res, next) => {
   //[3.1] Block deactivated accounts from using their still-valid token
   if (!user.active) {
     return next(
-      new ApiError("This account has been deactivated, please contact support", 401),
+      new ApiError(
+        "This account has been deactivated, please contact support",
+        401,
+      ),
     );
   }
 

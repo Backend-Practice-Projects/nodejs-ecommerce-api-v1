@@ -105,7 +105,7 @@ exports.changeUserPasswordValidator = [
     .isLength({ min: 6 })
     .withMessage("Password length must not be less than six character")
     .custom(async (password, { req }) => {
-      const user = await UserDoc.findById(req.params.id);
+      const user = await UserDoc.findById(req.params.id).select("+password");
       if (!user) {
         throw new Error(`No user found for this id ${req.params.id}`);
       }
@@ -174,7 +174,7 @@ exports.updateLoggedUserPasswordValidator = [
     .isLength({ min: 6 })
     .withMessage("Password length must not be less than six character")
     .custom(async (password, { req }) => {
-      const user = await UserDoc.findById(req.user._id);
+      const user = await UserDoc.findById(req.user._id).select("+password");
       const isCorrectPassword = await bcrypt.compare(
         req.body.currentPassword,
         user.password,
