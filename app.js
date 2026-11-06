@@ -11,6 +11,7 @@ const dotenv = require("dotenv");
 const morgan = require("morgan");
 const cors = require("cors");
 const compression = require("compression");
+const { rateLimit } = require("express-rate-limit");
 
 const dbConfiguration = require("./configs/database_config");
 /**
@@ -29,6 +30,7 @@ const { webhookCheckoutService } = require("./services/order_service");
 
 const ApiError = require("./utils/api_error");
 const globalErrorMiddleware = require("./middlewares/global_error_middleware");
+const sanitizeMiddleware = require("./middlewares/sanitize_middleware");
 
 /**
  * Load variables from .env, If the config file was declared as .env
@@ -145,7 +147,7 @@ app.use(compression());
  */
 app.set("query parser", "extended");
 
-//MiddlewareS
+//Middlewares
 
 /*
  * Must come before express.json().
@@ -178,8 +180,67 @@ app.post(
 
 /**
  * JSON Decoding Middleware. Also you can use body-parser npm package
+ *
+ * limit: the maximum size of the request body this middleware will accept.
+ * Anything bigger is rejected with 413 (Payload Too Large) before it is parsed,
+ * which protects the server from huge payloads that waste memory/CPU (DoS).
+ *
+ * How the size is calculated: it is the size of the raw body in bytes, not the
+ * number of fields or characters. Express reads it from the Content-Length
+ * header (and counts the bytes while streaming). "20kb" = 20 * 1024 = 20,480 bytes.
+ * Example: {"name":"Ali"} is 14 bytes, ASCII chars take 1 byte each, while
+ * non-ASCII ones (Arabic, emoji) take 2-4 bytes each in UTF-8.
+ * Default is "100kb" if no limit is set.
  */
-app.use(express.json());
+app.use(express.json({ limit: "20kb" }));
+/**
+ * Sanitize req.body / req.query / req.params against NoSQL injection ($ operators
+ * and dotted keys are removed) and XSS (< and > are escaped).
+ * Must come after express.json() (needs the parsed body) and before the routes.
+ */
+app.use(sanitizeMiddleware);
+/**
+ * Rate Limiting Middleware
+ * Limits each IP to 100 requests per 15 minutes on /api routes, to protect
+ * against brute force and request flooding. Extra requests get a 429 (Too Many Requests).
+ * It is mounted after the Stripe webhook route on purpose, so Stripe's calls are never blocked.
+ *
+ * Note for deployment: hosts like Heroku or Nginx sit in front of our app (a proxy),
+ * so every request reaches Express coming from the proxy's IP, not the user's IP.
+ * The limiter counts per IP, so all users would share one limit of 100 requests
+ * and get blocked together. Add app.set("trust proxy", 1) so Express reads the
+ * real user IP from the X-Forwarded-For header instead.
+ */
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    status: "fail",
+    message:
+      "Too many requests from this IP, please try again after 15 minutes",
+  },
+});
+app.use("/api", limiter);
+/**
+ * CSRF (Cross-Site Request Forgery)
+ * An attack where a malicious site tricks the logged-in user's browser into sending
+ * a request to our API (e.g. a hidden form that posts to /api/v1/orders). The browser
+ * attaches the user's cookies automatically, so the server thinks the user did it.
+ * A CSRF token stops this: the server gives the real frontend a secret token and
+ * rejects state-changing requests (POST/PUT/PATCH/DELETE) that don't send it back,
+ * which a malicious site cannot do.
+ *
+ * Not needed now: we authenticate with a JWT in the Authorization: Bearer header
+ * (see services/auth_service.js), and the browser never adds that header by itself,
+ * so a malicious site cannot forge it. No cookies are used, so there is nothing to abuse.
+ *
+ * TODO: if the JWT is moved to a cookie (or cors credentials: true with cookie sessions
+ * is enabled), apply CSRF protection: set the cookie with SameSite=Strict/Lax and add a
+ * CSRF token middleware (e.g. csrf-csrf) here. Exempt /webhook-checkout, because
+ * Stripe cannot send a token.
+ */
 /**
  * Serve Static Files
  * express.static exposes a folder's files directly over HTTP (no custom route needed),
