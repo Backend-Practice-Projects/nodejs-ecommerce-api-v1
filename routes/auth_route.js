@@ -27,6 +27,8 @@ router
 router
   .route("/verifyResetCode")
   .post(verifyPasswordResetCodeValidator, verifyPasswordResetCodeService);
-router.route("/resetPassword").put(resetPasswordValidator, resetPasswordService);
+router
+  .route("/resetPassword")
+  .put(resetPasswordValidator, resetPasswordService);
 
 module.exports = router;
