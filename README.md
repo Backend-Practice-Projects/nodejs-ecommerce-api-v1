@@ -11,10 +11,11 @@ REST API for an e-commerce store built with Express 5 and MongoDB (Mongoose).
 - Cart with coupon support
 - Orders: cash and card payments via Stripe Checkout + webhook
 - Filtering, sorting, field limiting, search and pagination
+- Security: input sanitization (NoSQL injection + XSS), rate limiting (100 req / 15 min per IP on `/api`), 20kb JSON body limit, password hash never returned in user responses
 
 ## Tech stack
 
-Express 5, Mongoose, JWT, express-validator, Multer + Sharp, Nodemailer, Stripe
+Express 5, Mongoose, JWT, express-validator, Multer + Sharp, Nodemailer, Stripe, express-rate-limit
 
 ## Getting started
 
@@ -83,8 +84,8 @@ server.js       Entry point (DB connection, listen)
 routes/         Route definitions (mounted in routes/index.js)
 services/       Request handlers / business logic
 models/         Mongoose schemas
-middlewares/    Error handling, validation, image upload
-utils/          Helpers (API features, errors, tokens, email, validators, dummy data)
+middlewares/    Error handling, validation, image upload, input sanitization
+utils/          Helpers (API features, errors, tokens, email, validators, user response sanitizer, dummy data)
 seeders/        Atlas IP whitelist script
 uploads/        Uploaded images (git-ignored)
 ```
